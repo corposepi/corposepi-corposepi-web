@@ -58,13 +58,17 @@ nav.sc{
 }
 /* Logo — sin recuadro */
 .nav-logo{display:flex;align-items:center;gap:.7rem;text-decoration:none;}
+/* Sin scroll: nav sobre hero oscuro → logo se vuelve blanco */
 .nav-logo img{
-  height:38px;
-  mix-blend-mode:multiply;   /* elimina el fondo blanco del PNG en nav claro */
-  object-fit:contain;
+  height:38px;object-fit:contain;
+  filter:brightness(0) invert(1);
+  transition:filter .35s;
 }
-/* En hero (fondo oscuro) no aplicar multiply */
-#hero .nav-logo img{mix-blend-mode:normal;filter:brightness(0) invert(1);}
+/* Con scroll: nav sobre fondo claro → blend-mode quita el fondo blanco del PNG */
+nav.sc .nav-logo img{
+  filter:none;
+  mix-blend-mode:multiply;
+}
 .nav-brand{font-family:'Fraunces',serif;font-size:1rem;font-weight:700;color:var(--text);letter-spacing:.01em;}
 nav:not(.sc) .nav-brand{color:var(--light);}
 
@@ -118,29 +122,30 @@ nav:not(.sc) .nav-burger span{background:var(--light);}
 #hero{
   min-height:100svh;position:relative;
   display:flex;align-items:center;overflow:hidden;padding-top:68px;
-  background:#0D0A07;
+  /* Fondo base naranja oscuro — independiente de la imagen */
+  background:#1A0C04;
 }
-/* Imagen de fondo */
+/* Imagen de fondo con opacidad MUY baja para que no tape el color */
 .hero-bg{position:absolute;inset:0;}
 .hero-bg img{
   width:100%;height:100%;object-fit:cover;
-  opacity:.18;filter:brightness(.55) saturate(.6);
+  opacity:.10;filter:brightness(.4) saturate(.5) blur(1px);
+  mix-blend-mode:luminosity;
 }
-/* Gradiente principal: naranja suave a izquierda, oscuro */
+/* Gradiente de color: naranja vibrante a la izquierda */
 .hero-bg::after{
   content:'';position:absolute;inset:0;
   background:
-    radial-gradient(ellipse 70% 80% at 0% 50%, rgba(184,65,10,.55) 0%, transparent 55%),
-    radial-gradient(ellipse 50% 60% at 100% 80%, rgba(212,120,30,.18) 0%, transparent 50%),
-    linear-gradient(to right, rgba(13,10,7,.98) 35%, rgba(13,10,7,.65) 75%, rgba(13,10,7,.4) 100%),
-    linear-gradient(to top, rgba(13,10,7,.98) 0%, transparent 30%);
+    radial-gradient(ellipse 65% 90% at -5% 55%, rgba(184,65,10,.85) 0%, rgba(184,65,10,.3) 40%, transparent 65%),
+    radial-gradient(ellipse 45% 55% at 105% 20%, rgba(212,100,20,.25) 0%, transparent 50%),
+    linear-gradient(135deg, #1A0C04 0%, #0F0703 100%);
 }
-/* Puntos decorativos */
+/* Puntos decorativos sutiles */
 .hero-bg::before{
   content:'';position:absolute;inset:0;z-index:1;pointer-events:none;
-  background-image:radial-gradient(circle, rgba(255,255,255,.06) 1px, transparent 1px);
-  background-size:32px 32px;
-  mask-image:radial-gradient(ellipse 60% 70% at 20% 50%, black 10%, transparent 80%);
+  background-image:radial-gradient(circle, rgba(255,255,255,.05) 1px, transparent 1px);
+  background-size:36px 36px;
+  mask-image:radial-gradient(ellipse 70% 80% at 15% 50%, black 5%, transparent 75%);
 }
 .hero-inner{
   position:relative;z-index:2;max-width:1140px;margin:0 auto;
