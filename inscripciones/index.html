@@ -41,7 +41,7 @@
 
     <div id="info-pago" class="aviso aviso-i"></div>
 
-    <form id="form" class="card" novalidate autocomplete="on">
+    <form id="form" class="card" novalidate autocomplete="off">
       <ul class="pasos" id="pasos"><li class="on"></li><li></li><li></li><li></li><li></li></ul>
 
       <!-- Paso 1 -->
@@ -188,6 +188,7 @@
         <div class="paso-tit">Paso 5 de 5</div>
         <h2>Aceptación y envío</h2>
         <p class="ayuda">Lea y acepte para enviar la inscripción.</p>
+        <div id="resumen" class="aviso aviso-i"></div>
         <label class="check"><input type="checkbox" name="aceptaPEI" required>
           <span><b>Aceptamos</b> el Proyecto Educativo Institucional PEI, el Manual de Convivencia, el sistema de Matrícula, pensión y las normas establecidas en la Ley General de Educación.</span></label>
         <label class="check"><input type="checkbox" name="autorizaDatos" required>
@@ -284,6 +285,11 @@
   };
 
   const F = $("#form");
+  // El navegador no debe autocompletar con los datos de quien diligencia
+  // (p. ej. llenaba "2do nombre/apellido" del estudiante con los del papá).
+  F.setAttribute("autocomplete", "off");
+  [...F.querySelectorAll("input:not([type=radio]):not([type=checkbox]):not([type=file]), select, textarea")]
+    .forEach(el => el.setAttribute("autocomplete", "cps-" + el.name));
   F.fechaNacimiento.onchange = () => { $("#edad-txt").textContent = edad(F.fechaNacimiento.value); };
   F.fechaNacimiento.max = CPS.hoyISO();
   $$('input[name="viveCon"]').forEach(r => r.onchange = () => {
@@ -396,6 +402,12 @@
     $$("#pasos li").forEach((l, i) => l.classList.toggle("on", i < n));
     $("#atras").hidden = n === 1; $("#sig").hidden = n === N; $("#enviar").hidden = n !== N;
     $("#err").hidden = true; F.classList.remove("mostrar-err");
+    if (n === N) {
+      const d = datos();
+      $("#resumen").innerHTML = `👀 <b>Revise antes de enviar.</b> Va a inscribir a <b>${esc(nombreEst(d))}</b>
+        (${esc(d.tipoDoc)} ${esc(d.numDoc)}) en <b>${esc(d.grado)}</b>, modalidad <b>${esc(d.modalidad || "—")}</b>.
+        Si algún dato no corresponde, use «← Atrás» para corregirlo.`;
+    }
     F.scrollIntoView({ behavior: "smooth", block: "start" });
   }
   function valido(n) {
