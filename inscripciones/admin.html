@@ -98,8 +98,8 @@
     <div class="kpis" id="kpis"></div>
 
     <div class="card">
-      <h2>Cupos por grado</h2>
-      <p class="ayuda">Solo cuentan como ocupados los cupos <b>confirmados</b> en secretaría.</p>
+      <h2>Cupos por grado del servicio de apoyo educativo</h2>
+      <p class="ayuda">Solo cuentan como ocupados los cupos <b>confirmados</b> por CORPOSEPI.</p>
       <div class="tabla-wrap"><table class="t" id="t-cupos"></table></div>
     </div>
 
@@ -124,13 +124,9 @@
     <div class="modal-cab"><h2>Configuración</h2><button type="button" class="x" data-cerrar>✕</button></div>
     <label class="check"><input type="checkbox" name="abierto"> <span><b>Inscripciones abiertas</b> — los padres pueden diligenciar el formulario.</span></label>
     <div class="grid">
-      <div class="c6"><label class="f">Días de plazo para confirmar el cupo</label><input name="diasPlazo" type="number" min="1" max="60"></div>
       <div class="c6"><label class="f">Fecha de cierre (opcional)</label><input name="fechaCierre" type="date"></div>
-      <div class="c6"><label class="f">WhatsApp de secretaría</label><input name="whatsappSecretaria" type="tel" placeholder="3001234567"></div>
-      <div class="c6"><label class="f">Lugar de confirmación</label><input name="lugarPago"></div>
-      <div class="c12"><label class="f">Horario de atención</label><input name="horario"></div>
-      <div class="c12"><label class="f">Documentos que deben llevar</label><textarea name="documentos"></textarea></div>
-      <div class="sub">Cupos disponibles por grado</div>
+      <div class="c6"><label class="f">WhatsApp de CORPOSEPI</label><input name="whatsappSecretaria" type="tel" placeholder="3001234567"></div>
+      <div class="sub">Cupos disponibles por grado del servicio de apoyo educativo</div>
       <div class="c12"><div class="grid" id="cfg-cupos"></div></div>
     </div>
     <div class="acciones"><button type="button" class="btn btn-s" data-cerrar>Cancelar</button><button class="btn btn-a">Guardar</button></div>
@@ -217,7 +213,7 @@
       k("", c.todas, "Inscripciones", "var(--azul)") +
       k("pendiente", c.pendiente, "Pendientes de confirmar", "var(--alerta)") +
       k("guardado", c.guardado, "Cupos confirmados", "var(--ok)") +
-      k("vencido", c.vencido, "Plazo vencido", "var(--rojo)") +
+      k("liberado", c.liberado, "Cupo no asignado", "var(--gris)") +
       `<div class="kpi" style="cursor:default"><div class="n" style="color:var(--gris)">${espera}</div><div class="l">En lista de espera</div></div>`;
     $$(".kpi[data-k]").forEach(d => d.onclick = () => { filtroKpi = d.dataset.k; $("#f-est").value = filtroKpi; pintarLista(); pintarKpis(); });
   }
@@ -234,7 +230,7 @@
         <td style="font-weight:800;color:${disp <= 0 ? "var(--rojo)" : "var(--ok)"}">${disp <= 0 ? "Lleno" : disp}</td>
         <td><div class="barra"><i style="width:${pct}%"></i></div></td></tr>`;
     });
-    $("#t-cupos").innerHTML = `<thead><tr><th>Grado</th><th>Cupos</th><th>Confirmados</th><th>Pendientes</th><th>Disponibles</th><th>Ocupación</th></tr></thead>
+    $("#t-cupos").innerHTML = `<thead><tr><th>Grado (apoyo educativo)</th><th>Cupos</th><th>Confirmados</th><th>Pendientes</th><th>Disponibles</th><th>Ocupación</th></tr></thead>
       <tbody>${filas}<tr style="font-weight:800"><td>Total</td><td>${tc}</td><td>${tg}</td><td>${tp}</td><td>${tc - tg}</td><td></td></tr></tbody>`;
   }
 
@@ -255,7 +251,7 @@
   function pintarLista() {
     const f = filtrada();
     if (!f.length) { $("#t-ins").innerHTML = `<tbody><tr><td style="text-align:center;color:var(--gris);padding:30px">${lista.length ? "No hay resultados con ese filtro." : "Aún no hay inscripciones. Comparta el link del formulario con los padres."}</td></tr></tbody>`; return; }
-    $("#t-ins").innerHTML = `<thead><tr><th>Código</th><th>Estudiante</th><th>Grado</th><th>Acudiente</th><th>Inscrito</th><th>Confirmar antes de</th><th>Estado</th></tr></thead><tbody>` +
+    $("#t-ins").innerHTML = `<thead><tr><th>Código</th><th>Estudiante</th><th>Grado (apoyo educativo)</th><th>Acudiente</th><th>Inscrito</th><th>Estado</th></tr></thead><tbody>` +
       f.map(i => {
         const st = ESTADOS[estadoReal(i)];
         return `<tr class="click" data-c="${esc(i.codigo)}">
@@ -264,7 +260,6 @@
           <td>${esc(i.grado)}${i.listaEspera ? '<br><small style="color:var(--alerta)">lista de espera</small>' : ""}</td>
           <td>${esc(i.acuNombre)}<br><small style="color:var(--gris)">${esc(i.acuTel)}</small></td>
           <td>${fecha(i.creado)}</td>
-          <td>${i.estado === "pendiente" ? fecha(i.venceEl) : "—"}</td>
           <td><span class="pill ${st.cls}">${st.txt}</span></td></tr>`;
       }).join("") + "</tbody>";
     $$("#t-ins tr[data-c]").forEach(tr => tr.onclick = () => detalle(tr.dataset.c));
@@ -278,36 +273,33 @@
     const hoy = CPS.hoyISO();
     const waAcu = telWa(i.acuTel);
     const msgRec = est === "guardado"
-      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} para ${i.grado} ${C.anio} en CORPOSEPI quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!`
-      : `Hola ${i.acuNombre}. Le recordamos que la inscripción de ${nombreEst(i)} para ${i.grado} ${C.anio} (código ${i.codigo}) está PENDIENTE DE CONFIRMAR. Para confirmar el cupo, acérquese a ${cfg.lugarPago} con los documentos del estudiante antes del ${fecha(i.venceEl)}. ${String(cfg.horario || "").replace(/\.\s*$/, "")}. La inscripción no tiene costo. CORPOSEPI.`;
+      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!`
+      : `Hola ${i.acuNombre}. Recibimos la inscripción de ${nombreEst(i)} al servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio} (código ${i.codigo}). Estamos revisándola y pronto le confirmaremos el cupo. CORPOSEPI.`;
 
     let acciones = "";
     if (i.estado === "pendiente") acciones = `
       <form class="pago-box" id="fconf">
         <h3 style="margin:0 0 10px;color:var(--ok)">✅ Confirmar cupo</h3>
-        <p class="ayuda" style="margin:0 0 10px">Use esta opción cuando la familia se presente en secretaría con los documentos.</p>
+        <p class="ayuda" style="margin:0 0 10px">Al confirmar, el cupo queda activo y la familia lo verá al consultar con su código.</p>
         <div class="grid">
           <div class="c4"><label class="f">Fecha *</label><input name="fecha" type="date" required value="${hoy}" max="${hoy}"></div>
-          <div class="c4"><label class="f">Atendió *</label><input name="recibio" required value="${esc(localStorage.getItem("cps_recibio") || "")}"></div>
-          <div class="c4"><label class="f">Documentos completos</label><select name="docs"><option>Sí</option><option>Faltan algunos</option></select></div>
-          <div class="c12"><label class="f">Observación</label><input name="obs" placeholder="Ej.: falta carné de vacunas"></div>
+          <div class="c8"><label class="f">Observación (opcional)</label><input name="obs"></div>
         </div>
         <div class="acciones" style="margin-top:12px"><span></span><button class="btn btn-ok">✓ Confirmar cupo</button></div>
       </form>`;
     else if (i.estado === "guardado" && i.confirmacion) acciones = `
-      <div class="pago-box"><b>✅ Cupo confirmado</b> — ${fecha(i.confirmacion.fecha)} · Atendió: ${esc(i.confirmacion.recibio)} · Documentos completos: ${esc(i.confirmacion.docs || "—")}${i.confirmacion.obs ? "<br>Observación: " + esc(i.confirmacion.obs) : ""}<br>
+      <div class="pago-box"><b>✅ Cupo confirmado</b> — ${fecha(i.confirmacion.fecha)}${i.confirmacion.obs ? "<br>Observación: " + esc(i.confirmacion.obs) : ""}<br>
       <small>Registrado por ${esc(i.confirmacion.registradoPor || "")} el ${fecha(i.confirmacion.registrado, true)}</small></div>`;
 
     $("#det").innerHTML = `
       <div class="modal-cab">${fotoSrc(i) ? `<img class="foto-mini" src="${esc(fotoSrc(i))}" alt="Foto">` : `<div class="foto-mini" style="display:flex;align-items:center;justify-content:center;color:var(--gris);font-size:12px;text-align:center">Sin foto</div>`}<h2>${esc(nombreEst(i))}<br><small class="mono" style="color:var(--gris)">${esc(i.codigo)}</small></h2>
         <span class="pill ${st.cls}" style="margin-top:6px">${st.txt}</span><button class="x" data-cerrar>✕</button></div>
-      ${est === "vencido" ? `<div class="aviso aviso-r">El plazo para confirmar venció el ${fecha(i.venceEl)}. Puede ampliar el plazo, confirmar el cupo o liberarlo.</div>` : ""}
       ${i.listaEspera && i.estado !== "guardado" ? `<div class="aviso aviso-a">Se inscribió cuando el grado estaba lleno (lista de espera).</div>` : ""}
       ${acciones}
       <div class="acciones" style="margin:0 0 14px;justify-content:flex-start">
         <button class="btn btn-a" id="d-imp">🖨️ Imprimir formulario</button>
-        ${waAcu ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${waAcu}?text=${encodeURIComponent(msgRec)}">📲 ${est === "guardado" ? "Avisar confirmación" : "Recordar"} por WhatsApp</a>` : ""}
-        ${i.estado === "pendiente" ? `<button class="btn btn-s" id="d-ampliar">⏱️ Ampliar plazo</button><button class="btn btn-s" id="d-liberar">Liberar cupo</button>` : ""}
+        ${waAcu ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${waAcu}?text=${encodeURIComponent(msgRec)}">📲 ${est === "guardado" ? "Avisar confirmación" : "Avisar recibido"} por WhatsApp</a>` : ""}
+        ${i.estado === "pendiente" ? `<button class="btn btn-s" id="d-liberar">No asignar cupo</button>` : ""}
         ${i.estado === "guardado" ? `<button class="btn btn-s" id="d-revertir">Revertir confirmación</button>` : ""}
         ${i.estado === "liberado" || i.estado === "anulado" ? `<button class="btn btn-s" id="d-reactivar">Reactivar inscripción</button>` : ""}
         ${i.estado !== "anulado" && i.estado !== "guardado" ? `<button class="btn btn-s" id="d-anular" style="color:var(--rojo)">Anular</button>` : ""}
@@ -316,8 +308,8 @@
         <h4>Estudiante</h4>
         ${d("Documento", i.tipoDoc + " " + i.numDoc)}${d("Expedido en", i.expedidoEn)}
         ${d("Fecha de nacimiento", i.fechaNacimiento + (i.edad ? " (" + i.edad + ")" : ""))}${d("Lugar de nacimiento / Nacionalidad", [i.lugarNacimiento, i.nacionalidad].filter(Boolean).join(" · "))}
-        ${d("EPS · RH · Sisbén", [i.eps, i.rh, i.sisben].filter(Boolean).join(" · "))}${d("Grado al que ingresa", i.grado)}
-        ${d("Tipo de estudiante", TIPOS[i.tipoEstudiante])}${d("Institución anterior", i.institucionAnterior)}
+        ${d("EPS · RH · Sisbén", [i.eps, i.rh, i.sisben].filter(Boolean).join(" · "))}${d("Grado del servicio de apoyo educativo", i.grado)}
+        ${d("Tipo de estudiante", TIPOS[i.tipoEstudiante])}
         ${d("Dirección", [i.direccion, i.torre && "Torre " + i.torre, i.apto && "Apto " + i.apto, i.conjunto].filter(Boolean).join(", "))}${d("Barrio · Estrato", [i.barrio, i.estrato && "Estrato " + i.estrato].filter(Boolean).join(" · "))}
         ${d("Vive con", (i.viveCon || "") + (i.viveConOtro ? ": " + i.viveConOtro : ""))}
         <h4>Salud</h4>
@@ -331,7 +323,7 @@
         ${d("Emergencia", i.emeNombre)}${d("Teléfono emergencia", i.emeTel)}
         <h4>Registro</h4>
         ${d("Diligenciado por", i.firmaNombre + " (" + i.firmaParentesco + ")")}${d("Fecha", fecha(i.creado, true))}
-        ${d("Plazo para confirmar", fecha(i.venceEl))}${d("Última modificación", i.modificado ? fecha(i.modificado, true) + (i.nota ? " — " + i.nota : "") : "")}
+        ${d("Última modificación", i.modificado ? fecha(i.modificado, true) + (i.nota ? " — " + i.nota : "") : "")}
       </div>`;
     $("#m-det").hidden = false;
     const usuario = Store.usuario();
@@ -349,23 +341,14 @@
     const fc = $("#fconf");
     if (fc) fc.onsubmit = ev => {
       ev.preventDefault();
-      localStorage.setItem("cps_recibio", fc.recibio.value.trim());
-      cambiar({ estado: "guardado", confirmacion: { fecha: fc.fecha.value, recibio: fc.recibio.value.trim(), docs: fc.docs.value, obs: fc.obs.value.trim(), registrado: new Date().toISOString(), registradoPor: usuario } },
+      cambiar({ estado: "guardado", confirmacion: { fecha: fc.fecha.value, obs: fc.obs.value.trim(), registrado: new Date().toISOString(), registradoPor: usuario } },
         "Cupo confirmado ✓");
     };
     const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
-    on("#d-ampliar", () => {
-      const n = prompt("¿Cuántos días más de plazo, contados desde hoy?", "5"); if (!n || isNaN(n)) return;
-      const v = new Date(Date.now() + Number(n) * 864e5); v.setHours(23, 59, 0, 0);
-      cambiar({ venceEl: v.toISOString(), nota: "Plazo ampliado " + n + " días" }, "Plazo ampliado hasta " + fecha(v.toISOString()));
-    });
-    on("#d-liberar", () => { if (confirm("¿Liberar el cupo? La inscripción queda registrada pero sin cupo.")) cambiar({ estado: "liberado", nota: "Cupo liberado: no se presentó a confirmar" }, "Cupo liberado"); });
+    on("#d-liberar", () => { const m = prompt("¿No asignar cupo? La inscripción queda registrada. Motivo (opcional):", ""); if (m !== null) cambiar({ estado: "liberado", nota: "Cupo no asignado" + (m ? ": " + m : "") }, "Inscripción sin cupo asignado"); });
     on("#d-anular", () => { const m = prompt("Motivo de la anulación (ej.: duplicada, desistió):"); if (m) cambiar({ estado: "anulado", nota: "Anulada: " + m }, "Inscripción anulada"); });
     on("#d-revertir", () => { if (confirm("¿Revertir la confirmación? La inscripción vuelve a 'Pendiente de confirmar'.")) cambiar({ estado: "pendiente", confirmacion: null, nota: "Confirmación revertida" }, "Confirmación revertida"); });
-    on("#d-reactivar", () => {
-      const v = new Date(Date.now() + (Number(cfg.diasPlazo) || 8) * 864e5); v.setHours(23, 59, 0, 0);
-      cambiar({ estado: "pendiente", venceEl: v.toISOString(), nota: "Reactivada" }, "Inscripción reactivada");
-    });
+    on("#d-reactivar", () => cambiar({ estado: "pendiente", nota: "Reactivada" }, "Inscripción reactivada"));
   }
 
   // ---------- modales ----------
@@ -378,7 +361,7 @@
   $("#b-cfg").onclick = () => {
     const f = $("#fcfg");
     f.abierto.checked = cfg.abierto;
-    ["diasPlazo", "fechaCierre", "whatsappSecretaria", "lugarPago", "horario", "documentos"].forEach(k => f[k].value = cfg[k] ?? "");
+    ["fechaCierre", "whatsappSecretaria"].forEach(k => f[k].value = cfg[k] ?? "");
     $("#cfg-cupos").innerHTML = GRADOS.map(g => `<div class="c3"><label class="f">${g}</label><input type="number" min="0" data-g="${g}" value="${cfg.cupos[g] || 0}"></div>`).join("");
     $("#m-cfg").hidden = false;
   };
@@ -387,12 +370,8 @@
     const f = ev.target;
     const n = Object.assign({}, cfg, {
       abierto: f.abierto.checked,
-      diasPlazo: Number(f.diasPlazo.value) || 8,
       fechaCierre: f.fechaCierre.value,
       whatsappSecretaria: f.whatsappSecretaria.value.trim(),
-      lugarPago: f.lugarPago.value.trim() || "la secretaría de CORPOSEPI",
-      horario: f.horario.value.trim(),
-      documentos: f.documentos.value.trim(),
       cupos: {}
     });
     $$("#cfg-cupos input").forEach(i => n.cupos[i.dataset.g] = Number(i.value) || 0);
@@ -401,7 +380,7 @@
   };
 
   // ---------- compartir / exportar ----------
-  const textoPadres = () => `🏫 *CORPOSEPI* — Corporación de Servicios Educativos Pensamiento e Innovación · Madrid, Cundinamarca\n\nApreciados padres de familia: ya están abiertas las *inscripciones ${C.anio}*.\n\n📝 Diligencie el formulario en línea aquí:\n${linkForm}\n\n✅ La inscripción es *sin costo*. El cupo queda *confirmado* al presentarse en ${cfg.lugarPago} con los documentos del estudiante dentro de los ${cfg.diasPlazo} días siguientes. Si no se presenta a tiempo, el cupo puede asignarse a otro estudiante.\n\n¡Gracias por elegirnos!`;
+  const textoPadres = () => `🏫 *CORPOSEPI* — Corporación de Servicios Educativos Pensamiento e Innovación · Madrid, Cundinamarca\n\nApreciados padres de familia: ya están abiertas las *inscripciones ${C.anio}*.\n\n📝 Diligencie el formulario en línea aquí:\n${linkForm}\n\n✅ La inscripción es *sin costo*. Al llenar el formulario recibe un código; CORPOSEPI revisará la inscripción y le *confirmará el cupo* en el servicio de apoyo educativo.\n\n¡Gracias por elegirnos!`;
   $("#b-link").onclick = async () => {
     try { await navigator.clipboard.writeText(linkForm); toast("Link copiado: " + linkForm); }
     catch (e) { prompt("Copie el link del formulario:", linkForm); }
@@ -409,16 +388,16 @@
   $("#b-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(textoPadres()), "_blank", "noopener");
 
   $("#b-csv").onclick = () => {
-    const cols = [["codigo", "Código"], ["_estado", "Estado"], ["_tipo", "Tipo"], ["grado", "Grado"], ["nombre1", "1er nombre"], ["nombre2", "2do nombre"], ["apellido1", "1er apellido"], ["apellido2", "2do apellido"],
+    const cols = [["codigo", "Código"], ["_estado", "Estado"], ["_tipo", "Tipo"], ["grado", "Grado apoyo educativo"], ["nombre1", "1er nombre"], ["nombre2", "2do nombre"], ["apellido1", "1er apellido"], ["apellido2", "2do apellido"],
       ["tipoDoc", "Tipo doc"], ["numDoc", "Documento"], ["expedidoEn", "Expedido en"], ["fechaNacimiento", "Nacimiento"], ["edad", "Edad"], ["nacionalidad", "Nacionalidad"], ["lugarNacimiento", "Lugar nac."],
       ["eps", "EPS"], ["rh", "RH"], ["sisben", "Sisbén"], ["direccion", "Dirección"], ["torre", "Torre"], ["apto", "Apto"], ["conjunto", "Conjunto"], ["barrio", "Barrio"], ["estrato", "Estrato"],
-      ["institucionAnterior", "Inst. anterior"], ["alergias", "Alergias"], ["enfermedades", "Enfermedades"], ["cuidados", "Cuidados"], ["rechazoAlimento", "Rechazo alimento"], ["viveCon", "Vive con"],
+      ["alergias", "Alergias"], ["enfermedades", "Enfermedades"], ["cuidados", "Cuidados"], ["rechazoAlimento", "Rechazo alimento"], ["viveCon", "Vive con"],
       ["madreNombre", "Madre"], ["madreCC", "CC madre"], ["madreCel", "Cel madre"], ["madreCorreo", "Correo madre"], ["madreTrabajo", "Trabajo madre"],
       ["padreNombre", "Padre"], ["padreCC", "CC padre"], ["padreCel", "Cel padre"], ["padreCorreo", "Correo padre"], ["padreTrabajo", "Trabajo padre"],
       ["acuNombre", "Acudiente"], ["acuCC", "CC acudiente"], ["acuTel", "Cel acudiente"], ["acuParentesco", "Parentesco"], ["acuCorreo", "Correo acudiente"],
-      ["emeNombre", "Emergencia"], ["emeTel", "Tel emergencia"], ["_creado", "Inscrito"], ["_vence", "Confirmar antes de"], ["_fconf", "Fecha confirmación"], ["_atendio", "Atendió"], ["_docs", "Documentos completos"], ["nota", "Nota"]];
-    const val = (i, k) => ({ _estado: ESTADOS[estadoReal(i)].txt, _tipo: TIPOS[i.tipoEstudiante], _creado: fecha(i.creado, true), _vence: fecha(i.venceEl),
-      _fconf: i.confirmacion?.fecha, _atendio: i.confirmacion?.recibio, _docs: i.confirmacion?.docs })[k] ?? i[k];
+      ["emeNombre", "Emergencia"], ["emeTel", "Tel emergencia"], ["_creado", "Inscrito"], ["_fconf", "Fecha confirmación"], ["_obs", "Observación"], ["nota", "Nota"]];
+    const val = (i, k) => ({ _estado: ESTADOS[estadoReal(i)].txt, _tipo: TIPOS[i.tipoEstudiante], _creado: fecha(i.creado, true),
+      _fconf: i.confirmacion?.fecha, _obs: i.confirmacion?.obs })[k] ?? i[k];
     const q = v => '"' + String(v ?? "").replace(/"/g, '""') + '"';
     const csv = "﻿" + cols.map(c => q(c[1])).join(";") + "\n" + filtrada().map(i => cols.map(c => q(val(i, c[0]))).join(";")).join("\n");
     const a = document.createElement("a");

@@ -9,13 +9,12 @@
     "Primero", "Segundo", "Tercero", "Cuarto", "Quinto",
     "Sexto", "Séptimo", "Octavo", "Noveno", "Décimo", "Undécimo"];
 
-  // En CORPOSEPI la inscripción NO tiene costo: el cupo se confirma
-  // cuando la familia se acerca a secretaría con los documentos.
+  // En CORPOSEPI esto es INSCRIPCIÓN (no matrícula) y NO tiene costo:
+  // la familia llena el formulario y la corporación confirma el cupo.
   const ESTADOS = {
     pendiente: { txt: "Pendiente de confirmar", cls: "st-pend" },
     guardado:  { txt: "Cupo confirmado",        cls: "st-ok" },
-    vencido:   { txt: "Plazo vencido",          cls: "st-venc" },
-    liberado:  { txt: "Cupo liberado",          cls: "st-lib" },
+    liberado:  { txt: "Cupo no asignado",       cls: "st-lib" },
     anulado:   { txt: "Anulada",                cls: "st-lib" }
   };
 
@@ -24,12 +23,8 @@
 
   const CONFIG_BASE = {
     abierto: true,
-    diasPlazo: 8,
     fechaCierre: "",
     whatsappSecretaria: "3208331239",
-    horario: "Lunes a viernes de 7:00 a.m. a 3:00 p.m.",
-    lugarPago: "la secretaría de CORPOSEPI",
-    documentos: "Copia del documento de identidad del estudiante, copia de la cédula del acudiente, certificado de EPS, carné de vacunas (preescolar) y boletín o paz y salvo del colegio anterior.",
     cupos: CUPOS_BASE,
     ocupados: {}
   };
@@ -70,8 +65,7 @@
     return [i.nombre1, i.nombre2, i.apellido1, i.apellido2].filter(Boolean).join(" ");
   }
   function estadoReal(i) {
-    if (i.estado === "pendiente" && i.venceEl && new Date() > new Date(i.venceEl)) return "vencido";
-    return i.estado;
+    return ESTADOS[i.estado] ? i.estado : "pendiente";
   }
   const TIPOS = { nuevo: "Estudiante nuevo", continuidad: "Continuidad (ya estudia en CORPOSEPI)" };
 
@@ -167,16 +161,9 @@
 
     async crear(data, cfg) {
       const codigo = genCodigo();
-      const ahora = new Date();
-      let vence = new Date(ahora.getTime() + (Number(cfg.diasPlazo) || 8) * 864e5);
-      vence.setHours(23, 59, 0, 0);
-      if (cfg.fechaCierre) {
-        const fc = new Date(cfg.fechaCierre + "T23:59:00");
-        if (fc < vence) vence = fc;
-      }
       const doc = limpio(Object.assign({}, data, {
         codigo, anio: C.anio, estado: "pendiente",
-        creado: ahora.toISOString(), venceEl: vence.toISOString()
+        creado: new Date().toISOString()
       }));
       if (db) await db.ref(RUTA + "/" + codigo).set(doc);
       else { const m = local.all(); m[codigo] = doc; local.put(m); }
@@ -257,21 +244,21 @@
   function hoja(i) {
     const e = esc, st = ESTADOS[estadoReal(i)] || ESTADOS.pendiente;
     const td = (t, v, cs) => `<td${cs ? ` colspan="${cs}"` : ""}><b>${t}</b>${e(v) || "&nbsp;"}</td>`;
-    const conf = i.confirmacion ? `Confirmado el ${fecha(i.confirmacion.fecha)} · Atendió: ${e(i.confirmacion.recibio)}` : "Cupo sin confirmar";
+    const conf = i.confirmacion ? `Confirmado el ${fecha(i.confirmacion.fecha)}` : "Cupo sin confirmar";
     return `<div class="hoja">
       <div class="enc"><img src="logo.png" alt="">
         <div><h1>FORMULARIO DE INSCRIPCIÓN ${C.anio}</h1><p>${e(C.colegio)} · ${e(C.colegioLargo)} · ${e(C.ciudad)}</p></div>
         <div class="estado-imp"><b>Código: ${e(i.codigo)}</b><br>Estado: <b>${st.txt}</b><br>${conf}<br>Diligenciado: ${fecha(i.creado, true)}</div>
         ${fotoSrc(i) ? `<img class="foto-imp" src="${e(fotoSrc(i))}" alt="Foto">` : `<div class="foto-imp">FOTO</div>`}
       </div>
-      <p class="legal">Apreciados Padres de Familia: para nuestra Institución es muy gratificante ser elegidos como educadores y formadores de su(s) hijo(a). La inscripción no tiene costo. Por favor tener en cuenta las fechas de confirmación y matrícula para evitar que su cupo sea asignado a otro estudiante.</p>
+      <p class="legal">Apreciados Padres de Familia: para nuestra Institución es muy gratificante ser elegidos como educadores y formadores de su(s) hijo(a). La inscripción no tiene costo. CORPOSEPI revisará la inscripción y le confirmará el cupo.</p>
       <h3>DATOS DEL ESTUDIANTE</h3>
       <table>
         <tr>${td("1er. Nombre", i.nombre1)}${td("2do. Nombre", i.nombre2)}${td("1er. Apellido", i.apellido1)}${td("2do. Apellido", i.apellido2)}</tr>
         <tr>${td("Documento", (i.tipoDoc || "") + " " + (i.numDoc || ""))}${td("Expedido en", i.expedidoEn)}${td("Nacionalidad", i.nacionalidad)}${td("Lugar de nacimiento", i.lugarNacimiento)}</tr>
         <tr>${td("Fecha de nacimiento", i.fechaNacimiento)}${td("Edad", i.edad)}${td("EPS", i.eps)}${td("RH / Sisbén", (i.rh || "") + " / " + (i.sisben || ""))}</tr>
         <tr>${td("Dirección", i.direccion, 2)}${td("Torre/bloque · Casa/Apto", [i.torre, i.apto].filter(Boolean).join(" · "))}${td("Conjunto", i.conjunto)}</tr>
-        <tr>${td("Barrio", i.barrio)}${td("Estrato", i.estrato)}${td("Institución anterior", i.institucionAnterior)}${td("Grado al que ingresa", i.grado)}</tr>
+        <tr>${td("Barrio", i.barrio)}${td("Estrato", i.estrato)}${td("Grado del servicio de apoyo educativo", i.grado, 2)}</tr>
         <tr>${td("Tipo de estudiante", TIPOS[i.tipoEstudiante] || "", 4)}</tr>
         <tr>${td("Alergias", i.alergias, 2)}${td("Enfermedades", i.enfermedades, 2)}</tr>
         <tr>${td("Cuidados especiales", i.cuidados, 2)}${td("Rechazo algún alimento", i.rechazoAlimento, 2)}</tr>

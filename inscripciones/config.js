@@ -7,7 +7,7 @@
 //
 //  Datos que se guardan:
 //    inscripciones/<año>/<código>      → cada inscripción
-//    inscripciones_config/<año>        → cupos, plazo, horario…
+//    inscripciones_config/<año>        → cupos, WhatsApp, abierto/cerrado
 //
 //  Si "firebase" se pone en null, la app queda en MODO DEMO
 //  (datos solo en el navegador, PIN de abajo).

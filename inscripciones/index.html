@@ -23,7 +23,7 @@
     </div>
   </div>
   <h1 class="hero-tit">Inscripciones <span id="anio">2027</span></h1>
-  <p class="hero-sub">Diligencie el formulario en línea. La inscripción es <b>sin costo</b>. El cupo queda <b>confirmado</b> cuando se acerca a la secretaría con los documentos del estudiante.</p>
+  <p class="hero-sub">Diligencie el formulario en línea. La inscripción es <b>sin costo</b>. Después, CORPOSEPI le <b>confirmará el cupo</b>.</p>
 </header>
 
 <main class="wrap">
@@ -36,7 +36,7 @@
   <section id="tab-form">
     <div id="cerrado" class="card" hidden>
       <h2>Inscripciones cerradas</h2>
-      <p class="ayuda">En este momento no estamos recibiendo inscripciones en línea. Comuníquese con la secretaría de CORPOSEPI.</p>
+      <p class="ayuda">En este momento no estamos recibiendo inscripciones en línea. Comuníquese con CORPOSEPI.</p>
     </div>
 
     <div id="info-pago" class="aviso aviso-i"></div>
@@ -103,10 +103,9 @@
             <select name="estrato"><option value="">—</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select></div>
 
           <div class="sub">Escolaridad</div>
-          <div class="c6"><label class="f">Grado al que ingresa en <span class="anio">2027</span> <span class="req">*</span></label>
+          <div class="c12"><label class="f">Grado del servicio de apoyo educativo <span class="anio">2027</span> <span class="req">*</span></label>
             <select name="grado" id="grado" required></select>
             <div class="nota" id="cupo-txt"></div></div>
-          <div class="c6"><label class="f">Institución anterior</label><input name="institucionAnterior" placeholder="Si es su primer colegio, escriba 'Ninguna'"></div>
         </div>
       </div>
 
@@ -191,7 +190,7 @@
         <label class="check"><input type="checkbox" name="autorizaDatos" required>
           <span>Diligenciando el presente documento <b>autorizamos</b> a CORPOSEPI – CORPORACIÓN DE SERVICIOS EDUCATIVOS PENSAMIENTO E INNOVACIÓN de manera expresa y consciente para que, de conformidad con la Ley 1581 de 2012 y sus decretos reglamentarios, trate, almacene y transmita los datos aquí consignados con fines de recolección, análisis de información, sugerencias, desarrollo y ejecución administrativa – educativa. Los datos sensibles de los menores de edad se protegen según el Marco Legal.</span></label>
         <label class="check"><input type="checkbox" name="entiendeConfirmacion" required>
-          <span>Entiendo que la inscripción es <b>sin costo</b> y que el cupo <b>solo queda confirmado al presentarme en la secretaría con los documentos</b> dentro del plazo indicado. Si no me presento a tiempo, el cupo puede asignarse a otro estudiante.</span></label>
+          <span>Entiendo que la inscripción es <b>sin costo</b> y que el cupo queda <b>confirmado cuando CORPOSEPI lo active</b>. Me informarán por WhatsApp o puedo consultarlo con mi código.</span></label>
         <div class="grid" style="margin-top:6px">
           <div class="c8"><label class="f">Nombre de quien diligencia (firma) <span class="req">*</span></label><input name="firmaNombre" required></div>
           <div class="c4"><label class="f">Parentesco <span class="req">*</span></label><input name="firmaParentesco" required list="parentescos"></div>
@@ -239,7 +238,7 @@
   </div>
 </div>
 
-<footer class="pie">CORPOSEPI · Corporación de Servicios Educativos Pensamiento e Innovación · Madrid, Cundinamarca<br>Sus datos están protegidos conforme a la Ley 1581 de 2012.<br><a href="../" style="color:var(--gris);font-size:12px">corposepi.org</a> · <a href="admin.html" style="color:var(--gris);font-size:12px">Acceso secretaría</a></footer>
+<footer class="pie">CORPOSEPI · Corporación de Servicios Educativos Pensamiento e Innovación · Madrid, Cundinamarca<br>Sus datos están protegidos conforme a la Ley 1581 de 2012.<br><a href="../" style="color:var(--gris);font-size:12px">corposepi.org</a> · <a href="admin.html" style="color:var(--gris);font-size:12px">Acceso CORPOSEPI</a></footer>
 
 <script src="config.js"></script>
 <script src="app.js"></script>
@@ -264,9 +263,8 @@
   if (!cfg.abierto) { $("#cerrado").hidden = false; $("#form").hidden = true; $("#info-pago").hidden = true; }
 
   const lim = cfg.fechaCierre ? ` Las inscripciones en línea cierran el <b>${fecha(cfg.fechaCierre + "T12:00:00")}</b>.` : "";
-  $("#info-pago").innerHTML = `✅ <b>La inscripción es sin costo.</b> Al terminar recibirá un <b>código</b>. Para <b>confirmar el cupo</b>, preséntese con ese código en ${esc(cfg.lugarPago)}
-    dentro de los <b>${cfg.diasPlazo} días</b> siguientes (${esc(cfg.horario)}).${lim}
-    ${cfg.documentos ? `<br>📄 <b>Documentos para llevar:</b> ${esc(cfg.documentos)}` : ""}`;
+  $("#info-pago").innerHTML = `✅ <b>La inscripción es sin costo.</b> Llene el formulario y al terminar recibirá un <b>código</b>.
+    CORPOSEPI revisará la inscripción y le <b>confirmará el cupo</b>; con el código puede consultar el estado cuando quiera.${lim}`;
 
   // ----- grados con cupos -----
   const sel = $("#grado");
@@ -297,13 +295,6 @@
     F.acuParentesco.value = p === "madre" ? "Madre" : "Padre";
     if (!F.firmaNombre.value) { F.firmaNombre.value = F.acuNombre.value; F.firmaParentesco.value = F.acuParentesco.value; }
   });
-
-  // ----- tipo de estudiante -----
-  $$('input[name="tipoEstudiante"]').forEach(r => r.addEventListener("change", () => {
-    const ia = F.institucionAnterior;
-    if (F.tipoEstudiante.value === "continuidad" && !ia.value) ia.value = C.colegio;
-    else if (F.tipoEstudiante.value === "nuevo" && ia.value === C.colegio) ia.value = "";
-  }));
 
   // ----- foto del estudiante -----
   const DK = "cps" + C.anio + "_borrador";
@@ -451,25 +442,23 @@
   function mostrarComprobante(i, cont, nuevo) {
     const est = estadoReal(i), st = ESTADOS[est];
     let msg = "";
-    if (est === "pendiente") msg = `<div class="aviso aviso-a" style="text-align:left">⏳ <b>Su cupo aún no está confirmado.</b> Preséntese en ${esc(cfg.lugarPago)} con este código y los documentos del estudiante <b>antes del ${fecha(i.venceEl)}</b>. ${esc(cfg.horario).replace(/\.\s*$/, "")}. <b>No tiene ningún costo.</b>${cfg.documentos ? `<br>📄 ${esc(cfg.documentos)}` : ""}</div>`;
-    else if (est === "guardado") msg = `<div class="aviso aviso-ok" style="text-align:left">✅ <b>¡Cupo confirmado!</b>${i.confirmacion ? ` Confirmado el ${fecha(i.confirmacion.fecha)}.` : ""} Le informaremos las fechas de matrícula.</div>`;
-    else if (est === "vencido") msg = `<div class="aviso aviso-r" style="text-align:left">⚠️ <b>El plazo para confirmar venció el ${fecha(i.venceEl)}.</b> El cupo puede ser asignado a otro estudiante. Comuníquese de inmediato con la secretaría.</div>`;
-    else msg = `<div class="aviso aviso-r" style="text-align:left">Esta inscripción figura como <b>${st.txt.toLowerCase()}</b>. Comuníquese con la secretaría de CORPOSEPI.</div>`;
+    if (est === "pendiente") msg = `<div class="aviso aviso-a" style="text-align:left">⏳ <b>Inscripción recibida, cupo pendiente de confirmar.</b> CORPOSEPI revisará la inscripción y le confirmará el cupo. No tiene que hacer nada más ni tiene ningún costo.</div>`;
+    else if (est === "guardado") msg = `<div class="aviso aviso-ok" style="text-align:left">✅ <b>¡Cupo confirmado!</b>${i.confirmacion ? ` Confirmado el ${fecha(i.confirmacion.fecha)}.` : ""} CORPOSEPI se comunicará con usted para los siguientes pasos.</div>`;
+    else msg = `<div class="aviso aviso-r" style="text-align:left">Esta inscripción figura como <b>${st.txt.toLowerCase()}</b>. Comuníquese con CORPOSEPI.</div>`;
     const wa = cfg.whatsappSecretaria
-      ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, inscribí a ${nombreEst(i)} para ${i.grado} ${C.anio} en CORPOSEPI. Mi código es ${i.codigo}.`)}">WhatsApp secretaría</a>` : "";
+      ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, inscribí a ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}. Mi código es ${i.codigo}.`)}">WhatsApp CORPOSEPI</a>` : "";
     cont.innerHTML = `
       ${nuevo ? `<div style="font-size:46px">🎉</div><h2>¡Inscripción recibida!</h2>` : `<h2>Estado de la inscripción</h2>`}
-      <p class="ayuda">${nuevo ? "Guarde este código: lo necesitará para confirmar el cupo y para consultar el estado." : ""}</p>
+      <p class="ayuda">${nuevo ? "Guarde este código: con él puede consultar si su cupo ya fue confirmado." : ""}</p>
       <div class="codigo">${esc(i.codigo)}</div>
       <div><span class="pill ${st.cls}">${st.txt}</span>${i.listaEspera && est !== "guardado" ? ' <span class="pill st-lib">Lista de espera</span>' : ""}</div>
       ${fotoSrc(i) ? `<div style="margin-top:12px"><img class="foto-mini" src="${esc(fotoSrc(i))}" alt="Foto del estudiante"></div>` : ""}
       <dl class="datos">
         <dt>Estudiante</dt><dd>${esc(nombreEst(i))}</dd>
         <dt>Tipo</dt><dd>${esc(CPS.TIPOS[i.tipoEstudiante] || "—")}</dd>
-        <dt>Grado ${C.anio}</dt><dd>${esc(i.grado)}</dd>
+        <dt>Grado del servicio de apoyo educativo ${C.anio}</dt><dd>${esc(i.grado)}</dd>
         <dt>Acudiente</dt><dd>${esc(i.acuNombre)}</dd>
         <dt>Diligenciado</dt><dd>${fecha(i.creado, true)}</dd>
-        ${est === "pendiente" || est === "vencido" ? `<dt>Confirmar antes de</dt><dd>${fecha(i.venceEl)}</dd>` : ""}
         <dt>Valor inscripción</dt><dd>Sin costo</dd>
       </dl>
       ${msg}
