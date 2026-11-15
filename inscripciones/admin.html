@@ -259,7 +259,7 @@
         const st = ESTADOS[estadoReal(i)];
         return `<tr class="click" data-c="${esc(i.codigo)}">
           <td class="mono">${esc(i.codigo)}</td>
-          <td><b>${esc(nombreEst(i))}</b>${fotoSrc(i) ? " 📷" : ""}<br><small style="color:var(--gris)">${esc(i.tipoDoc)} ${esc(i.numDoc)} · ${i.tipoEstudiante === "continuidad" ? "Continuidad" : i.tipoEstudiante === "nuevo" ? "Nuevo" : ""}</small></td>
+          <td><b>${esc(nombreEst(i))}</b>${fotoSrc(i) ? " 📷" : ' <small style="color:var(--rojo);font-weight:700">· sin foto</small>'}<br><small style="color:var(--gris)">${esc(i.tipoDoc)} ${esc(i.numDoc)} · ${i.tipoEstudiante === "continuidad" ? "Continuidad" : i.tipoEstudiante === "nuevo" ? "Nuevo" : ""}</small></td>
           <td>${esc(i.grado)}${i.modalidad ? `<br><small style="color:var(--gris)">${esc(i.modalidad)}</small>` : ""}${i.listaEspera ? '<br><small style="color:var(--alerta)">lista de espera</small>' : ""}</td>
           <td>${esc(i.acuNombre)}<br><small style="color:var(--gris)">${esc(i.acuTel)}</small></td>
           <td>${fecha(i.creado)}</td>
@@ -295,7 +295,8 @@
       <small>Registrado por ${esc(i.confirmacion.registradoPor || "")} el ${fecha(i.confirmacion.registrado, true)}</small></div>`;
 
     $("#det").innerHTML = `
-      <div class="modal-cab">${fotoSrc(i) ? `<img class="foto-mini" src="${esc(fotoSrc(i))}" alt="Foto">` : `<div class="foto-mini" style="display:flex;align-items:center;justify-content:center;color:var(--gris);font-size:12px;text-align:center">Sin foto</div>`}<h2>${esc(nombreEst(i))}<br><small class="mono" style="color:var(--gris)">${esc(i.codigo)}</small></h2>
+      <div class="modal-cab"><div style="display:flex;flex-direction:column;align-items:center;gap:6px">${fotoSrc(i) ? `<img class="foto-mini" src="${esc(fotoSrc(i))}" alt="Foto">` : `<div class="foto-mini" style="display:flex;align-items:center;justify-content:center;color:var(--rojo);font-size:12px;font-weight:700;text-align:center;border-color:var(--rojo)">Sin foto</div>`}
+        <label class="mini-btn" style="cursor:pointer;white-space:nowrap">📷 ${fotoSrc(i) ? "Cambiar foto" : "Subir foto"}<input type="file" id="d-foto" accept="image/*" hidden></label></div><h2>${esc(nombreEst(i))}<br><small class="mono" style="color:var(--gris)">${esc(i.codigo)}</small></h2>
         <span class="pill ${st.cls}" style="margin-top:6px">${st.txt}</span><button class="x" data-cerrar>✕</button></div>
       ${i.listaEspera && i.estado !== "guardado" ? `<div class="aviso aviso-a">Se inscribió cuando el grado estaba lleno (lista de espera).</div>` : ""}
       ${acciones}
@@ -341,6 +342,12 @@
       } catch (e) { console.error(e); toast("No se pudo guardar: " + e.message); }
     }
     $("#d-imp").onclick = () => imprimir(hoja(i));
+    $("#d-foto").onchange = async ev => {
+      const file = ev.target.files[0]; ev.target.value = "";
+      if (!file) return;
+      try { const foto = await CPS.fotoReducida(file); cambiar({ foto, nota: "Foto " + (fotoSrc(i) ? "cambiada" : "agregada") + " por " + usuario }, "Foto guardada ✓"); }
+      catch (e) { toast("No se pudo cargar la foto. Use una imagen JPG o PNG."); }
+    };
     const fc = $("#fconf");
     if (fc) fc.onsubmit = ev => {
       ev.preventDefault();
