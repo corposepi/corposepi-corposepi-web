@@ -308,13 +308,35 @@
 
   // ---------- matrícula 2027: pago, folio, carné y cartera ----------
   const RM = "matriculas_" + C.anio, RD = "matriculas_" + C.anio + "_docs";
+  // Mensaje de WhatsApp al acudiente según la etapa de la matrícula
+  function avisoWA(i) {
+    const p = i.pagoMatricula, m = mats[i.codigo], tel = telWa(i.acuTel);
+    if (!tel) return "";
+    const est = nombreEst(i), L = linkMat(i);
+    let txt = "", lbl = "";
+    if (m && m.estado === "confirmada") { lbl = "Enviar carné y confirmación";
+      txt = `Hola ${i.acuNombre}. ¡La matrícula ${C.anio} de ${est} quedó CONFIRMADA! Folio N.° ${m.folio}.\n\nEste es su carné digital ${C.anio}:\n${linkForm}carnet.html?id=${encodeURIComponent(m.carnet || "")}\n\nBienvenidos a CORPOSEPI.`; }
+    else if (m && m.estado === "correccion") { lbl = "Avisar corrección";
+      txt = `Hola ${i.acuNombre}. Revisamos la matrícula ${C.anio} de ${est} (folio ${m.folio}) y necesitamos una corrección: ${m.motivo || ""}.\n\nIngrese aquí para corregir y enviar de nuevo:\n${L}`; }
+    else if (m && m.estado === "enviada") return "";
+    else if (p && p.estado === "aprobado") { lbl = "Avisar: pago aprobado, ya puede matricular";
+      txt = `Hola ${i.acuNombre}. Recibimos y APROBAMOS el pago de matrícula ${C.anio} de ${est} (${pesos(p.valor)}).\n\nYa puede formalizar la matrícula: llene el folio, adjunte los documentos y firme el contrato y el pagaré aquí:\n${L}`; }
+    else if (p && p.estado === "rechazado") { lbl = "Avisar: pago no aprobado";
+      txt = `Hola ${i.acuNombre}. No pudimos aprobar el soporte de pago de matrícula de ${est}: ${p.motivo || ""}.\n\nPor favor repórtelo de nuevo aquí:\n${L}`; }
+    else if (!p) { lbl = "Enviar factura de matrícula";
+      txt = `Hola ${i.acuNombre}. El cupo de ${est} en CORPOSEPI ${C.anio} está confirmado. Aquí puede ver la factura de matrícula, reportar el pago y luego formalizar la matrícula:\n${L}`; }
+    else return "";
+    return `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${tel}?text=${encodeURIComponent(txt)}">📲 ${lbl}</a>`;
+  }
+
   function cajaMatricula(i) {
     const p = i.pagoMatricula, m = mats[i.codigo], k = CPS.calcFactura(i, cfg, p && p.fecha);
     let h = `<div class="mat-box"><h3>🎓 Matrícula ${C.anio}</h3>
       <div style="font-size:14px">Factura: <b>${esc((i.factura && i.factura.numero) || "aún no abierta por la familia")}</b> · Valor matrícula: <b>${pesos(k.base)}</b>${k.desc ? ` · con descuento a la fecha del pago: <b>${pesos(k.total)}</b>` : ""} · Pensión: <b>${pesos(k.pension)}</b>/mes</div>
       <div class="acciones" style="margin:10px 0 0;justify-content:flex-start">
         <button type="button" class="btn btn-s" id="m-fact">🧾 Ver factura</button>
-        <button type="button" class="btn btn-s" id="m-link">🔗 Copiar link de matrícula</button></div>`;
+        <button type="button" class="btn btn-s" id="m-link">🔗 Copiar link de matrícula</button>
+        ${avisoWA(i)}</div>`;
     if (!p) h += `<p class="ayuda" style="margin:10px 0 0">La familia aún no ha reportado el pago de la matrícula.</p>`;
     else {
       h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>💵 Pago reportado:</b> ${pesos(p.valor)} · ${fecha(p.fecha)} · ${esc(p.medio)}${p.ref ? " · Ref. " + esc(p.ref) : ""}
@@ -348,7 +370,7 @@
     on("#m-fact", () => imprimir(DOCS.factura(i, cfg)));
     on("#m-link", async () => { try { await navigator.clipboard.writeText(linkMat(i)); toast("Link copiado"); } catch (e) { prompt("Link de matrícula:", linkMat(i)); } });
     on("#m-soporte", async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/soportePago")));
-    on("#m-aprobar", () => cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "aprobado", aprobado: new Date().toISOString(), aprobadoPor: usuario }) }, "Pago aprobado ✓ — la familia ya puede firmar la matrícula"));
+    on("#m-aprobar", () => cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "aprobado", aprobado: new Date().toISOString(), aprobadoPor: usuario }) }, "Pago aprobado ✓ — avísele a la familia con el botón verde de WhatsApp"));
     on("#m-rechazar", () => { const mo = prompt("Motivo del rechazo (la familia lo verá):"); if (mo) cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "rechazado", motivo: mo }) }, "Pago rechazado"); });
     $$("#det [data-doc]").forEach(b => b.onclick = async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/" + b.dataset.doc)));
     $$("#det [data-imp]").forEach(b => b.onclick = () => imprimir(b.dataset.imp === "folio" ? DOCS.folio(i, m) : b.dataset.imp === "contrato" ? DOCS.contrato(i, m, cfg) : DOCS.pagare(i, m)));
