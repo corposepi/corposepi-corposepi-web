@@ -38,4 +38,5 @@ window.CPS_CONFIG = {
   pinDemo: "2027"
 };
 // Abrir con ?demo en la dirección para probar sin tocar la base real.
-if (/[?&]demo\b/.test(location.search)) window.CPS_CONFIG.firebase = null;
+window.CPS_DEMO = /[?&]demo\b/.test(location.search) ? "&demo" : "";
+if (window.CPS_DEMO) window.CPS_CONFIG.firebase = null;

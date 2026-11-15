@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Carné 2027 · CORPOSEPI</title>
+<meta name="description" content="Carné digital del estudiante — CORPOSEPI, servicio de apoyo educativo.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#C4440C">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<style>
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px 16px; gap: 16px; }
+  @media print { body > *:not(#v) { display: none !important; } #v { display: block !important; } }
+</style>
+</head>
+<body>
+<div id="v"><div class="card" style="text-align:center">Cargando carné…</div></div>
+<div class="acciones" id="acc" hidden style="justify-content:center;margin:0">
+  <button class="btn btn-a" onclick="window.print()">🖨️ Imprimir / guardar PDF</button>
+</div>
+<p class="nota" style="text-align:center">Carné digital emitido por CORPOSEPI · NIT 901.898.846-6 · Madrid, Cundinamarca</p>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="docs.js"></script>
+<script>
+(async function () {
+  const { C, Store, esc } = CPS;
+  const v = document.getElementById("v");
+  const id = new URLSearchParams(location.search).get("id") || "";
+  try {
+    await Store.init(true);
+    const c = /^CORP-\d{4}-\d{3,6}$/.test(id) ? await Store.get("carnets_" + C.anio + "/" + id) : null;
+    if (!c) { v.innerHTML = `<div class="card"><h2>Carné no encontrado</h2><p class="ayuda">Verifique el enlace o el código QR.</p></div>`; return; }
+    v.innerHTML = DOCS.carne(c);
+    DOCS.pintarQR(v);
+    document.getElementById("acc").hidden = false;
+    document.title = c.nombres + " " + c.apellidos + " · Carné " + c.ano;
+  } catch (e) { console.error(e); v.innerHTML = `<div class="card">No fue posible cargar el carné. Revise su conexión.</div>`; }
+})();
+</script>
+</body>
+</html>

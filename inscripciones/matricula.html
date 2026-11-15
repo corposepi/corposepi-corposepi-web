@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Matrícula 2027 · CORPOSEPI</title>
+<meta name="description" content="Matrícula 2027 en línea — CORPOSEPI, servicio de apoyo educativo. Factura, pago, documentos y firmas.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#C4440C">
+<link rel="icon" href="logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=DM+Sans:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="marca">
+    <img src="logo.png" alt="Logo CORPOSEPI">
+    <div>
+      <div class="t1">Corporación de Servicios Educativos</div>
+      <div class="t2">CORPOSEPI · Pensamiento e Innovación</div>
+      <div class="t3">Madrid, Cundinamarca</div>
+    </div>
+  </div>
+  <h1 class="hero-tit">Matrícula <span class="anio">2027</span></h1>
+  <p class="hero-sub">Servicio de apoyo educativo. Con su código de inscripción vea la factura, reporte el pago y formalice la matrícula con las firmas.</p>
+</header>
+
+<main class="wrap">
+  <!-- Acceso -->
+  <form id="facceso" class="card">
+    <h2>Ingresar</h2>
+    <p class="ayuda">Escriba el código que recibió al inscribirse y el número de documento del estudiante.</p>
+    <div class="grid">
+      <div class="c6"><label class="f">Código de inscripción</label><input name="codigo" required placeholder="CP27-XXXX-XXXX" style="text-transform:uppercase"></div>
+      <div class="c6"><label class="f">Documento del estudiante</label><input name="doc" required inputmode="numeric"></div>
+    </div>
+    <div id="aerr" class="aviso aviso-r" hidden style="margin-top:14px"></div>
+    <div class="acciones"><a href="./" class="btn btn-s">← Inscripciones</a><button class="btn btn-a">Continuar</button></div>
+  </form>
+
+  <div id="vista" hidden></div>
+</main>
+
+<footer class="pie">CORPOSEPI · Corporación de Servicios Educativos Pensamiento e Innovación · NIT 901.898.846-6 · Madrid, Cundinamarca<br>Sus datos están protegidos conforme a la Ley 1581 de 2012.</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="docs.js"></script>
+<script>
+(async function () {
+  const { C, Store, esc, pesos, fecha, nombreEst, calcFactura, archivoReducido, verArchivo, imprimir, telWa } = CPS;
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  $$(".anio").forEach(e => e.textContent = C.anio);
+  const V = $("#vista");
+  const RM = "matriculas_" + C.anio, RD = "matriculas_" + C.anio + "_docs";
+  let cfg, i, codigo, docNum;
+
+  try { await Store.init(true); cfg = await Store.getConfig(); }
+  catch (e) { console.error(e); $("#aerr").textContent = "No fue posible conectar con CORPOSEPI. Revise su conexión."; $("#aerr").hidden = false; return; }
+
+  // Acceso por enlace (?c=&d=) o con lo último usado
+  const FA = $("#facceso"), q = new URLSearchParams(location.search);
+  try { const u = JSON.parse(localStorage.getItem("cps" + C.anio + "_ultimo") || "null"); if (u) { FA.codigo.value = u.codigo; FA.doc.value = u.doc; } } catch (e) {}
+  if (q.get("c")) FA.codigo.value = q.get("c");
+  if (q.get("d")) FA.doc.value = q.get("d");
+  FA.onsubmit = async ev => { ev.preventDefault(); await entrar(); };
+  if (FA.codigo.value && FA.doc.value) entrar();
+
+  async function entrar() {
+    $("#aerr").hidden = true;
+    try {
+      const x = await Store.obtener(FA.codigo.value);
+      const d = FA.doc.value.replace(/\s|\./g, "");
+      if (!x || x.numDoc !== d) { $("#aerr").textContent = "No encontramos una inscripción con ese código y documento."; $("#aerr").hidden = false; return; }
+      i = x; codigo = x.codigo; docNum = d;
+      try { localStorage.setItem("cps" + C.anio + "_ultimo", JSON.stringify({ codigo, doc: d })); } catch (e) {}
+      FA.hidden = true; V.hidden = false;
+      await pintar();
+    } catch (e) { console.error(e); $("#aerr").textContent = "No fue posible consultar. Intente de nuevo."; $("#aerr").hidden = false; }
+  }
+  async function recargar() { i = await Store.obtener(codigo); await pintar(); }
+
+  function etapas(n) {
+    const t = ["1. Cupo confirmado", "2. Factura y pago", "3. Pago aprobado", "4. Folio, documentos y firmas", "5. Matrícula y carné"];
+    return `<ul class="etapas">${t.map((x, k) => `<li class="${k < n ? "hecho" : k === n ? "on" : ""}">${x}</li>`).join("")}</ul>`;
+  }
+  function cab() {
+    return `<div class="card"><div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      ${CPS.fotoSrc(i) ? `<img class="foto-mini" src="${esc(CPS.fotoSrc(i))}" alt="">` : ""}
+      <div><h2 style="margin:0">${esc(nombreEst(i))}</h2><div class="ayuda" style="margin:2px 0 0">${esc(i.grado)} · ${esc(i.modalidad || "")} · Inscripción <b>${esc(codigo)}</b></div></div>
+      <button class="btn btn-s" style="margin-left:auto" onclick="location.href=location.pathname+(window.CPS_DEMO?'?demo':'')">Salir</button></div></div>`;
+  }
+
+  async function pintar() {
+    if (i.estado !== "guardado") {
+      V.innerHTML = cab() + `<div class="card">${etapas(0)}<div class="aviso aviso-a">⏳ <b>El cupo aún no ha sido confirmado.</b> Cuando CORPOSEPI confirme el cupo, aquí aparecerá la factura de matrícula.</div></div>`;
+      return;
+    }
+    // Factura: se numera la primera vez que se abre (consecutivo FM27-0001…)
+    if (!i.factura || !i.factura.numero) {
+      const n = await Store.siguiente("inscripciones_meta/" + C.anio + "/factura");
+      const factura = { numero: "FM" + String(C.anio).slice(2) + "-" + String(n).padStart(4, "0"), fecha: new Date().toISOString() };
+      await Store.actualizar(codigo, { factura }); i.factura = factura;
+    }
+    const m = await Store.get(RM + "/" + codigo);
+    const pago = i.pagoMatricula;
+    if (m && m.estado === "confirmada") return pintarFinal(m);
+    if (m && m.estado === "enviada") return pintarEnviada(m);
+    if (pago && pago.estado === "aprobado") return pintarMatricula(m);
+    pintarFactura(pago);
+  }
+
+  // ---------- Etapa 2: factura + pago ----------
+  function pintarFactura(pago) {
+    const k = calcFactura(i, cfg);
+    let caja = "";
+    if (pago && pago.estado === "revision") caja = `<div class="aviso aviso-a">⏳ <b>Pago reportado, en revisión.</b> Reportó ${pesos(pago.valor)} el ${fecha(pago.fecha)} (${esc(pago.medio)}). Cuando CORPOSEPI lo apruebe podrá formalizar la matrícula con las firmas.</div>`;
+    else caja = `${pago && pago.estado === "rechazado" ? `<div class="aviso aviso-r">El soporte de pago anterior no fue aprobado${pago.motivo ? ": <b>" + esc(pago.motivo) + "</b>" : ""}. Por favor repórtelo de nuevo.</div>` : ""}
+      <form id="fpago" class="card" style="box-shadow:none;border:1.5px solid var(--linea)">
+        <h2>Reportar pago de matrícula</h2>
+        <p class="ayuda">Cuando haya pagado, suba la foto o PDF del comprobante. CORPOSEPI lo revisará y le habilitará el folio de matrícula.</p>
+        <div class="grid">
+          <div class="c4"><label class="f">Valor pagado <span class="req">*</span></label><input name="valor" type="number" min="1" required value="${k.total}"></div>
+          <div class="c4"><label class="f">Fecha del pago <span class="req">*</span></label><input name="fecha" type="date" required value="${CPS.hoyISO()}" max="${CPS.hoyISO()}"></div>
+          <div class="c4"><label class="f">Medio <span class="req">*</span></label><select name="medio" required><option>Transferencia</option><option>Consignación</option><option>Nequi / Daviplata</option><option>PSE</option><option>Efectivo</option></select></div>
+          <div class="c6"><label class="f">Referencia / N.° de comprobante</label><input name="ref"></div>
+          <div class="c6"><label class="f">Soporte del pago <span class="req">*</span></label><input name="soporte" type="file" accept="image/*,application/pdf" required></div>
+        </div>
+        <div id="perr" class="aviso aviso-r" hidden style="margin-top:12px"></div>
+        <div class="acciones"><span></span><button class="btn btn-p" id="b-pago">Enviar soporte de pago</button></div>
+      </form>`;
+    V.innerHTML = cab() + `<div class="card">${etapas(1)}
+      <div class="aviso aviso-ok">✅ <b>¡Cupo confirmado!</b> Esta es su factura de matrícula ${C.anio}. Fecha máxima para pagar y matricular: <b>${fecha(k.fechaLimite)}</b>.</div>
+      <div class="doc-vista" id="v-fact">${DOCS.factura(i, cfg)}</div>
+      <div class="acciones" style="justify-content:flex-start"><button class="btn btn-a" id="b-impf">🖨️ Imprimir / guardar PDF</button>
+        ${cfg.whatsappSecretaria ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, quiero pagar la matrícula ${C.anio} de ${nombreEst(i)} (factura ${i.factura.numero}). ¿Me envían los datos de pago?`)}">WhatsApp CORPOSEPI</a>` : ""}</div>
+      ${caja}</div>`;
+    $("#b-impf").onclick = () => imprimir(DOCS.factura(i, cfg));
+    const fp = $("#fpago");
+    if (fp) fp.onsubmit = async ev => {
+      ev.preventDefault();
+      const b = $("#b-pago"); b.disabled = true; b.textContent = "Enviando…";
+      try {
+        const a = await archivoReducido(fp.soporte.files[0]);
+        await Store.set(RD + "/" + codigo + "/soportePago", Object.assign(a, { subido: new Date().toISOString() }));
+        await Store.actualizar(codigo, { pagoMatricula: { estado: "revision", valor: Number(fp.valor.value), fecha: fp.fecha.value, medio: fp.medio.value, ref: fp.ref.value.trim(), enviado: new Date().toISOString() } });
+        await recargar(); window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) { console.error(e); $("#perr").textContent = e.message || "No se pudo enviar. Intente de nuevo."; $("#perr").hidden = false; b.disabled = false; b.textContent = "Enviar soporte de pago"; }
+    };
+  }
+
+  // ---------- Etapa 4: folio, documentos, contrato, pagaré y firmas ----------
+  function docsRequeridos() {
+    const fs = DOCS.firmantes(i), r = [
+      { k: "docEst", titulo: "Documento de identidad del estudiante", sub: (i.tipoDoc || "") + " " + (i.numDoc || "") },
+      { k: "docAcu", titulo: "Cédula del acudiente", sub: i.acuNombre }];
+    if (fs.some(f => f.k === "madre")) r.push({ k: "docMadre", titulo: "Cédula de la madre", sub: i.madreNombre });
+    if (fs.some(f => f.k === "padre")) r.push({ k: "docPadre", titulo: "Cédula del padre", sub: i.padreNombre });
+    if (i.tipoEstudiante !== "continuidad") r.push({ k: "certGrado", titulo: "Certificado del grado inmediatamente anterior", sub: "Con aprobación del grado (estudiantes nuevos)" });
+    r.push({ k: "certEps", titulo: "Certificado de afiliación a EPS", sub: i.eps ? "EPS: " + i.eps : "Vigente" });
+    return r;
+  }
+
+  async function pintarMatricula(prev) {
+    prev = prev || {};
+    const subidos = (await Store.get(RD + "/" + codigo + "/_lista")) || {};
+    const reqs = docsRequeridos(), fs = DOCS.firmantes(i);
+    const firmas = {};
+    const borrador = { acuExpedida: prev.acuExpedida || "", acuCorreo: prev.acuCorreo || i.acuCorreo || "", folio: "(se asigna al enviar)", firmas: {} };
+    V.innerHTML = cab() + `<div class="card">${etapas(3)}
+      ${prev.estado === "correccion" ? `<div class="aviso aviso-r">CORPOSEPI pidió una corrección${prev.motivo ? ": <b>" + esc(prev.motivo) + "</b>" : ""}. Revise y envíe de nuevo.</div>` : ""}
+      <div class="aviso aviso-ok">✅ <b>Pago aprobado.</b> Ahora formalice la matrícula: los datos de la inscripción ya están cargados, solo falta adjuntar documentos y firmar.</div>
+      <h2>Folio de matrícula</h2>
+      <p class="ayuda">N.° de folio: <b>se asigna automáticamente al enviar</b>. Los datos vienen de su inscripción; si algo cambió, avísele a CORPOSEPI.</p>
+      <dl class="datos" style="max-width:none">
+        <dt>Estudiante</dt><dd>${esc(nombreEst(i))} · ${esc(i.tipoDoc)} ${esc(i.numDoc)}</dd>
+        <dt>Grado del servicio de apoyo educativo</dt><dd>${esc(i.grado)} · ${esc(CPS.nivelDe(i.grado))}</dd>
+        <dt>Modalidad</dt><dd>${esc(i.modalidad || "—")}</dd>
+        <dt>Acudiente</dt><dd>${esc(i.acuNombre)} · C.C. ${esc(i.acuCC)} · ${esc(i.acuTel)}</dd>
+        <dt>Madre / Padre</dt><dd>${esc([i.madreNombre, i.padreNombre].filter(Boolean).join(" · ") || "—")}</dd>
+      </dl>
+      <div class="grid">
+        <div class="c6"><label class="f">Cédula del acudiente expedida en <span class="req">*</span></label><input id="m-exp" value="${esc(borrador.acuExpedida)}" placeholder="Ej.: Madrid"></div>
+        <div class="c6"><label class="f">Correo del acudiente</label><input id="m-correo" type="email" value="${esc(borrador.acuCorreo)}"></div>
+      </div>
+
+      <h2 style="margin-top:22px">Documentos</h2>
+      <p class="ayuda">Tome una foto clara o suba el PDF de cada documento. Se guardan apenas los sube.</p>
+      <div id="lista-docs">${reqs.map(d => `<div class="doc-item ${subidos[d.k] ? "ok" : ""}" data-k="${d.k}">
+        <div class="t">${subidos[d.k] ? "✅" : "📄"} ${esc(d.titulo)} <span class="req">*</span><small>${esc(d.sub || "")}</small></div>
+        <div style="display:flex;gap:8px"><button type="button" class="mini-btn b-ver" ${subidos[d.k] ? "" : "hidden"}>Ver</button>
+        <label class="mini-btn" style="cursor:pointer">${subidos[d.k] ? "Cambiar" : "📎 Adjuntar"}<input type="file" accept="image/*,application/pdf"></label></div></div>`).join("")}</div>
+
+      <h2 style="margin-top:22px">Contrato del servicio de apoyo educativo</h2>
+      <details><summary class="mini-btn" style="display:inline-block;cursor:pointer">Leer el contrato</summary><div class="doc-vista" id="v-contrato" style="margin-top:10px"></div></details>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="ac-contrato"><span>He leído y <b>acepto el contrato</b> de prestación del servicio de apoyo educativo ${C.anio}.</span></label>
+
+      <h2 style="margin-top:12px">Pagaré y carta de instrucciones</h2>
+      <details><summary class="mini-btn" style="display:inline-block;cursor:pointer">Leer el pagaré y la carta</summary><div class="doc-vista" id="v-pagare" style="margin-top:10px"></div></details>
+      <label class="check" style="margin-top:10px"><input type="checkbox" id="ac-pagare"><span>Como acudiente, <b>suscribo el pagaré en blanco y su carta de instrucciones</b> como garantía del contrato.</span></label>
+      <label class="check"><input type="checkbox" id="ac-folio"><span>Declaramos que la información es veraz y <b>formalizamos la matrícula ${C.anio}</b>.</span></label>
+
+      <h2 style="margin-top:12px">Firmas</h2>
+      <p class="ayuda">Firme con el dedo o el mouse dentro de cada recuadro. La firma del acudiente se usa en el folio, el contrato, el pagaré y la carta.</p>
+      ${fs.map(f => `<div class="firma-caja"><h4>${esc(f.rol)} ${f.req ? '<span class="req">*</span>' : '<small style="color:var(--gris);font-weight:400">(si está presente)</small>'}</h4>
+        <div class="nota" style="margin:0 0 6px">${esc(f.nombre)} · ${esc(f.doc)}</div>
+        <div class="firma-pad" data-f="${f.k}"><canvas></canvas><button type="button" class="mini-btn borrar">Borrar</button></div></div>`).join("")}
+
+      <div id="merr" class="aviso aviso-r" hidden></div>
+      <div class="acciones"><span></span><button class="btn btn-p" id="b-enviar">Enviar matrícula ✓</button></div></div>`;
+
+    const vistaDocs = () => {
+      borrador.acuExpedida = $("#m-exp").value.trim(); borrador.acuCorreo = $("#m-correo").value.trim();
+      borrador.firmas = Object.fromEntries(Object.entries(firmas).filter(([, v]) => v.img).map(([k, v]) => [k, v]));
+      $("#v-contrato").innerHTML = DOCS.contrato(i, borrador, cfg);
+      $("#v-pagare").innerHTML = DOCS.pagare(i, borrador);
+    };
+    vistaDocs();
+    $$("#m-exp, #m-correo").forEach(e => e.addEventListener("input", vistaDocs));
+
+    // adjuntar documentos (se guardan de una vez)
+    $$("#lista-docs .doc-item").forEach(row => {
+      const k = row.dataset.k, inp = row.querySelector("input[type=file]");
+      inp.onchange = async () => {
+        const f = inp.files[0]; inp.value = ""; if (!f) return;
+        const t = row.querySelector(".t"); const antes = t.innerHTML; t.innerHTML = "⏳ Subiendo…";
+        try {
+          const a = await archivoReducido(f);
+          await Store.set(RD + "/" + codigo + "/" + k, Object.assign(a, { subido: new Date().toISOString() }));
+          await Store.set(RD + "/" + codigo + "/_lista/" + k, true);
+          subidos[k] = true; row.classList.add("ok");
+          t.innerHTML = antes.replace("📄", "✅"); row.querySelector(".b-ver").hidden = false;
+          row.querySelector("label.mini-btn").firstChild.textContent = "Cambiar";
+        } catch (e) { t.innerHTML = antes; alert(e.message || "No se pudo subir el archivo."); }
+      };
+      row.querySelector(".b-ver").onclick = async () => verArchivo(await Store.get(RD + "/" + codigo + "/" + k));
+    });
+
+    // pads de firma
+    $$(".firma-pad").forEach(pad => {
+      const cv = pad.querySelector("canvas"), k = pad.dataset.f;
+      const ajustar = () => { const r = cv.getBoundingClientRect(); cv.width = r.width * 2; cv.height = r.height * 2; const g = cv.getContext("2d"); g.scale(2, 2); g.lineWidth = 2.4; g.lineCap = "round"; g.lineJoin = "round"; g.strokeStyle = "#111"; };
+      ajustar();
+      const g = () => cv.getContext("2d");
+      let dib = false, trazos = 0;
+      const pos = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+      cv.addEventListener("pointerdown", e => { dib = true; cv.setPointerCapture(e.pointerId); const [x, y] = pos(e); g().beginPath(); g().moveTo(x, y); });
+      cv.addEventListener("pointermove", e => { if (!dib) return; const [x, y] = pos(e); g().lineTo(x, y); g().stroke(); trazos++; });
+      const fin = () => {
+        if (!dib) return; dib = false;
+        if (trazos > 8) {
+          const s = document.createElement("canvas"); s.width = 500; s.height = Math.round(500 * cv.height / cv.width);
+          s.getContext("2d").drawImage(cv, 0, 0, s.width, s.height);
+          const f = fs.find(x => x.k === k);
+          firmas[k] = { img: s.toDataURL("image/png"), nombre: f.nombre, doc: f.doc, fecha: new Date().toISOString() };
+          pad.classList.add("ok"); vistaDocs();
+        }
+      };
+      cv.addEventListener("pointerup", fin); cv.addEventListener("pointerleave", fin);
+      pad.querySelector(".borrar").onclick = () => { g().clearRect(0, 0, cv.width, cv.height); trazos = 0; delete firmas[k]; pad.classList.remove("ok"); vistaDocs(); };
+    });
+
+    $("#b-enviar").onclick = async () => {
+      const err = [];
+      if (!$("#m-exp").value.trim()) err.push("lugar de expedición de la cédula del acudiente");
+      reqs.forEach(d => { if (!subidos[d.k]) err.push(d.titulo); });
+      if (!$("#ac-contrato").checked) err.push("aceptar el contrato");
+      if (!$("#ac-pagare").checked) err.push("suscribir el pagaré y la carta");
+      if (!$("#ac-folio").checked) err.push("formalizar la matrícula");
+      fs.filter(f => f.req && !firmas[f.k]).forEach(f => err.push("firma de " + f.rol.toLowerCase()));
+      if (err.length) { $("#merr").innerHTML = "<b>Falta:</b> " + err.map(esc).join(" · "); $("#merr").hidden = false; $("#merr").scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+      const b = $("#b-enviar"); b.disabled = true; b.textContent = "Enviando…";
+      try {
+        const folio = prev.folio || String(await Store.siguiente("matriculas_meta/" + C.anio + "/folio")).padStart(4, "0");
+        const docs = {}; reqs.forEach(d => docs[d.k] = { titulo: d.titulo, ok: true });
+        const m = { folio, codigo, anio: C.anio, estado: "enviada", enviada: new Date().toISOString(),
+          acuExpedida: $("#m-exp").value.trim(), acuCorreo: $("#m-correo").value.trim(),
+          acepta: { contrato: true, pagare: true, carta: true, folio: true }, firmas, docs };
+        await Store.set(RM + "/" + codigo, m);
+        await recargar(); window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) { console.error(e); $("#merr").textContent = "No se pudo enviar. Revise su conexión e intente de nuevo."; $("#merr").hidden = false; b.disabled = false; b.textContent = "Enviar matrícula ✓"; }
+    };
+  }
+
+  function botonesDocs(m) {
+    return `<div class="acciones" style="justify-content:flex-start">
+      <button class="btn btn-a" data-imp="folio">🖨️ Folio de matrícula</button>
+      <button class="btn btn-s" data-imp="contrato">Contrato</button>
+      <button class="btn btn-s" data-imp="pagare">Pagaré y carta</button>
+      <button class="btn btn-s" data-imp="factura">Factura</button></div>`;
+  }
+  function enlazarImp(m) {
+    $$("[data-imp]").forEach(b => b.onclick = () => imprimir(
+      b.dataset.imp === "folio" ? DOCS.folio(i, m) : b.dataset.imp === "contrato" ? DOCS.contrato(i, m, cfg) : b.dataset.imp === "pagare" ? DOCS.pagare(i, m) : DOCS.factura(i, cfg)));
+  }
+  function pintarEnviada(m) {
+    V.innerHTML = cab() + `<div class="card">${etapas(4)}
+      <div class="aviso aviso-a">📨 <b>Matrícula enviada — Folio N.° ${esc(m.folio)}.</b> CORPOSEPI revisará los documentos y confirmará la matrícula. Al confirmarla se genera el carné digital ${C.anio}.</div>
+      ${botonesDocs(m)}</div>`;
+    enlazarImp(m);
+  }
+  async function pintarFinal(m) {
+    const c = m.carnet ? await Store.get("carnets_" + C.anio + "/" + m.carnet) : null;
+    V.innerHTML = cab() + `<div class="card">${etapas(5)}
+      <div class="aviso aviso-ok">🎉 <b>¡Matrícula ${C.anio} confirmada!</b> Folio N.° ${esc(m.folio)}. Bienvenidos a CORPOSEPI.</div>
+      ${c ? `<h2>Carné digital ${C.anio}</h2><div id="v-carne" style="margin:10px 0 6px">${DOCS.carne(c)}</div>
+        <div class="acciones" style="justify-content:center"><a class="btn btn-ok" href="carnet.html?id=${encodeURIComponent(c.id)}${window.CPS_DEMO}" target="_blank" rel="noopener">Abrir carné</a></div>` : ""}
+      ${botonesDocs(m)}</div>`;
+    if (c) DOCS.pintarQR($("#v-carne"));
+    enlazarImp(m);
+  }
+})();
+</script>
+</body>
+</html>

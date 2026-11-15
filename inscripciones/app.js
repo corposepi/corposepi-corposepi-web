@@ -21,12 +21,28 @@
   const CUPOS_BASE = {};
   GRADOS.forEach((g, i) => CUPOS_BASE[g] = i < 3 ? 20 : 30);
 
+  // Valores de matrícula y pensión 2027 por grado (se cambian en el panel → Configuración)
+  const VALORES_BASE = {};
+  GRADOS.forEach(g => VALORES_BASE[g] = { matricula: 800000, pension: 519000 });
+
+  const MATRICULA_BASE = {
+    valores: VALORES_BASE,
+    mesesPension: 10,                       // febrero a noviembre
+    fechaLimite: (C.anio) + "-01-31",       // fecha máxima para pagar y matricular
+    mediosPago: "Transferencia o consignación a la cuenta de CORPOSEPI (pida los datos por WhatsApp) o pago en efectivo en CORPOSEPI.",
+    descuentos: {
+      d1: { nombre: "Pago de matrícula en diciembre", aplica: "matricula", pct: 10, hasta: (C.anio - 1) + "-12-31", para: "todos" },
+      d2: { nombre: "Pago anticipado del año completo de pensiones", aplica: "pension", pct: 5, hasta: (C.anio) + "-02-05", para: "todos" }
+    }
+  };
+
   const CONFIG_BASE = {
     abierto: true,
     fechaCierre: "",
     whatsappSecretaria: "3208331239",
     cupos: CUPOS_BASE,
-    ocupados: {}
+    ocupados: {},
+    matricula: MATRICULA_BASE
   };
 
   // ---------- utilidades ----------
@@ -89,6 +105,92 @@
       img.src = url;
     });
   }
+  // ---------- matrícula: valores, descuentos y factura ----------
+  function pesos(n) { return "$ " + Math.round(Number(n) || 0).toLocaleString("es-CO"); }
+  function nivelDe(g) {
+    const i = GRADOS.indexOf(g);
+    if (i < 3) return "Preescolar";
+    if (i < 8) return "Básica Primaria";
+    if (i < 12) return "Básica Secundaria";
+    return "Media Académica — Grado " + (i === 12 ? "10°" : "11°");
+  }
+  // Descuentos que aplican a un estudiante (por tipo nuevo/continuidad)
+  function descuentosPara(i, cfg, aplica) {
+    return Object.entries(cfg.matricula.descuentos || {})
+      .map(([id, d]) => Object.assign({ id }, d))
+      .filter(d => d.aplica === aplica && (!d.para || d.para === "todos" || d.para === i.tipoEstudiante) && Number(d.pct) > 0)
+      .sort((a, b) => String(a.hasta).localeCompare(String(b.hasta)));
+  }
+  // Calcula la factura de matrícula a una fecha dada (ISO yyyy-mm-dd)
+  function calcFactura(i, cfg, hoy) {
+    hoy = hoy || hoyISO();
+    const v = cfg.matricula.valores[i.grado] || { matricula: 0, pension: 0 };
+    const base = Number(v.matricula) || 0;
+    const descM = descuentosPara(i, cfg, "matricula");
+    const vigente = descM.filter(d => !d.hasta || hoy <= d.hasta).sort((a, b) => b.pct - a.pct)[0] || null;
+    const desc = vigente ? Math.round(base * vigente.pct / 100) : 0;
+    const escalas = descM.map(d => ({ nombre: d.nombre, hasta: d.hasta, pct: d.pct, total: base - Math.round(base * d.pct / 100), vigente: !d.hasta || hoy <= d.hasta }));
+    return {
+      base, desc, total: base - desc, vigente, escalas,
+      pension: Number(v.pension) || 0, meses: Number(cfg.matricula.mesesPension) || 10,
+      descPension: descuentosPara(i, cfg, "pension"),
+      fechaLimite: cfg.matricula.fechaLimite
+    };
+  }
+  // Número a letras (pesos colombianos) para contrato y pagaré
+  function enLetras(n) {
+    n = Math.round(Number(n) || 0);
+    if (n === 0) return "CERO PESOS";
+    const U = ["", "UNO", "DOS", "TRES", "CUATRO", "CINCO", "SEIS", "SIETE", "OCHO", "NUEVE", "DIEZ", "ONCE", "DOCE", "TRECE", "CATORCE", "QUINCE", "DIECISÉIS", "DIECISIETE", "DIECIOCHO", "DIECINUEVE", "VEINTE", "VEINTIUNO", "VEINTIDÓS", "VEINTITRÉS", "VEINTICUATRO", "VEINTICINCO", "VEINTISÉIS", "VEINTISIETE", "VEINTIOCHO", "VEINTINUEVE"];
+    const D = ["", "", "", "TREINTA", "CUARENTA", "CINCUENTA", "SESENTA", "SETENTA", "OCHENTA", "NOVENTA"];
+    const CEN = ["", "CIENTO", "DOSCIENTOS", "TRESCIENTOS", "CUATROCIENTOS", "QUINIENTOS", "SEISCIENTOS", "SETECIENTOS", "OCHOCIENTOS", "NOVECIENTOS"];
+    const tres = x => {
+      if (x === 100) return "CIEN";
+      const c = Math.floor(x / 100), r = x % 100;
+      const dd = r < 30 ? U[r] : D[Math.floor(r / 10)] + (r % 10 ? " Y " + U[r % 10] : "");
+      return [CEN[c], dd].filter(Boolean).join(" ");
+    };
+    const mill = Math.floor(n / 1e6), miles = Math.floor((n % 1e6) / 1000), resto = n % 1000;
+    const p = [];
+    if (mill) p.push(mill === 1 ? "UN MILLÓN" : tres(mill).replace(/UNO$/, "UN") + " MILLONES");
+    if (miles) p.push(miles === 1 ? "MIL" : tres(miles).replace(/UNO$/, "UN") + " MIL");
+    if (resto) p.push(tres(resto));
+    return p.join(" ") + ((!miles && !resto && mill) ? " DE PESOS" : " PESOS");
+  }
+  // Reduce documentos: imágenes a JPEG ≤1400 px; PDF se guarda tal cual si pesa ≤ 2,5 MB
+  function archivoReducido(file) {
+    return new Promise((ok, fail) => {
+      if (!file) return fail(new Error("Sin archivo"));
+      if (file.type === "application/pdf") {
+        if (file.size > 2.5 * 1024 * 1024) return fail(new Error("El PDF pesa más de 2,5 MB. Tómele foto o redúzcalo."));
+        const fr = new FileReader(); fr.onload = () => ok({ data: fr.result, tipo: "pdf", nombre: file.name }); fr.onerror = () => fail(new Error("No se pudo leer el PDF")); fr.readAsDataURL(file); return;
+      }
+      if (!/^image\//.test(file.type)) return fail(new Error("Use una foto (JPG/PNG) o un PDF."));
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => {
+        const M = 1400, r = Math.min(1, M / Math.max(img.width, img.height));
+        const c = document.createElement("canvas"); c.width = Math.round(img.width * r); c.height = Math.round(img.height * r);
+        const g = c.getContext("2d"); g.fillStyle = "#fff"; g.fillRect(0, 0, c.width, c.height); g.drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url); ok({ data: c.toDataURL("image/jpeg", 0.72), tipo: "img", nombre: file.name });
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); fail(new Error("No se pudo leer la imagen")); };
+      img.src = url;
+    });
+  }
+  // Abre un archivo guardado (data:…) en otra pestaña
+  function verArchivo(a) {
+    if (!a || !a.data) return;
+    const w = window.open("", "_blank");
+    if (!w) { alert("Permita ventanas emergentes para ver el documento."); return; }
+    w.document.write(a.tipo === "pdf"
+      ? `<title>${esc(a.nombre || "Documento")}</title><iframe src="${a.data}" style="border:0;position:fixed;inset:0;width:100%;height:100%"></iframe>`
+      : `<title>${esc(a.nombre || "Documento")}</title><body style="margin:0;background:#333"><img src="${a.data}" style="max-width:100%;display:block;margin:auto"></body>`);
+  }
+  function hoyLargo(iso) {
+    const d = iso ? new Date(iso) : new Date();
+    return d.toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" });
+  }
+
   function telWa(t) {
     let d = String(t || "").replace(/\D/g, "");
     if (d.length === 10) d = "57" + d;
@@ -117,6 +219,27 @@
     all() { try { return JSON.parse(localStorage.getItem(LK + "insc") || "{}"); } catch (e) { return {}; } },
     put(map) { localStorage.setItem(LK + "insc", JSON.stringify(map)); }
   };
+  // Árbol local para modo demo (imita la base de datos por rutas)
+  const arbol = {
+    raiz() { try { return JSON.parse(localStorage.getItem(LK + "arbol") || "{}"); } catch (e) { return {}; } },
+    get(path) {
+      if (path.startsWith(RUTA + "/")) { const p = path.split("/"); return p.slice(3).reduce((o, k) => o == null ? null : o[k], local.all()[p[2]]) ?? null; }
+      return path.split("/").reduce((o, k) => o == null ? null : o[k], this.raiz()) ?? null;
+    },
+    set(path, val) {
+      if (path.startsWith(RUTA + "/")) {
+        const p = path.split("/"), m = local.all(); let o = m;
+        for (let i = 2; i < p.length - 1; i++) o = o[p[i]] = o[p[i]] || {};
+        if (val === null) delete o[p[p.length - 1]]; else o[p[p.length - 1]] = val;
+        local.put(m); return;
+      }
+      const r = this.raiz(), p = path.split("/"); let o = r;
+      for (let i = 0; i < p.length - 1; i++) o = o[p[i]] = (o[p[i]] && typeof o[p[i]] === "object") ? o[p[i]] : {};
+      if (val === null) delete o[p[p.length - 1]]; else o[p[p.length - 1]] = val;
+      localStorage.setItem(LK + "arbol", JSON.stringify(r));
+    }
+  };
+
   const esAdmin = email => (C.admins || []).map(x => x.toLowerCase()).includes(String(email || "").toLowerCase());
 
   const Store = {
@@ -151,7 +274,34 @@
       const r = Object.assign({}, CONFIG_BASE, c);
       r.cupos = Object.assign({}, CONFIG_BASE.cupos, c.cupos || {});
       r.ocupados = Object.assign({}, c.ocupados || {});
+      const m = c.matricula || {};
+      r.matricula = Object.assign({}, MATRICULA_BASE, m);
+      r.matricula.valores = {};
+      GRADOS.forEach(g => r.matricula.valores[g] = Object.assign({}, VALORES_BASE[g], (m.valores || {})[g] || {}));
+      r.matricula.descuentos = m.descuentos !== undefined ? (m.descuentos || {}) : MATRICULA_BASE.descuentos;
       return r;
+    },
+
+    // ---- acceso genérico a otros nodos (matrícula, carnés, cartera 2027) ----
+    async get(path) {
+      if (db) return (await db.ref(path).once("value")).val();
+      return arbol.get(path);
+    },
+    async set(path, val) {
+      if (db) return db.ref(path).set(val);
+      arbol.set(path, val);
+    },
+    async patch(path, obj) {
+      if (db) return db.ref(path).update(obj);
+      Object.entries(obj).forEach(([k, v]) => arbol.set(path + "/" + k, v));
+    },
+    // Consecutivo seguro (folio, factura, carné): devuelve el siguiente número
+    async siguiente(path) {
+      if (db) {
+        const r = await db.ref(path).transaction(n => (Number(n) || 0) + 1);
+        return r.snapshot.val();
+      }
+      const n = (Number(arbol.get(path)) || 0) + 1; arbol.set(path, n); return n;
     },
 
     async saveConfig(cfg) {
@@ -293,5 +443,5 @@
 
   const MODALIDADES = ["Presencial", "Semipresencial", "Virtual"];
 
-  window.CPS = { MODALIDADES, C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
+  window.CPS = { pesos, nivelDe, calcFactura, enLetras, archivoReducido, verArchivo, hoyLargo, MODALIDADES, C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
 })();

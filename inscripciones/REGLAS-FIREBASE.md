@@ -41,4 +41,19 @@ Qué hacen:
 > en la raíz, esas permiten todo hacia abajo y estas restricciones no se aplican.
 > En ese caso conviene mover esos permisos a los nodos que usan los carnets (`corposepi`, etc.).
 
+## 4. Nodos de matrícula 2027 (no tocan nada de 2026)
+| Nodo | Qué guarda |
+|---|---|
+| `inscripciones_meta/2027/factura` | consecutivo de facturas FM27-0001… |
+| `matriculas_2027/<código>` | folio, firmas, aceptaciones, estado |
+| `matriculas_2027_docs/<código>/<doc>` | documentos y soporte de pago (foto/PDF) |
+| `matriculas_meta/2027/folio` | consecutivo del folio de matrícula |
+| `carnets_2027/<CORP-2027-0001>` | carné digital 2027 |
+| `carnets_2027_meta/seq` | consecutivo del carné |
+| `familias_2027/<cc>`, `pagos_2027/f_<cc>` | cartera 2027 (mismo formato que familias_v3 / pagos_v3) |
+
+Al cerrar reglas: los padres necesitan leer/escribir **solo su** `matriculas_2027/<código>` y `matriculas_2027_docs/<código>`
+(como en `inscripciones`), leer `carnets_2027/<id>` y usar los consecutivos; `familias_2027`, `pagos_2027` y escribir
+`carnets_2027` deben quedar solo para la cuenta institucional.
+
 Para agregar otro correo administrador: añadirlo en las reglas y en `config.js` → `admins`.

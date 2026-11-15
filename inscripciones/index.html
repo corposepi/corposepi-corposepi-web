@@ -464,7 +464,8 @@
     const est = estadoReal(i), st = ESTADOS[est];
     let msg = "";
     if (est === "pendiente") msg = `<div class="aviso aviso-a" style="text-align:left">⏳ <b>Inscripción recibida, cupo pendiente de confirmar.</b> CORPOSEPI revisará la inscripción y le confirmará el cupo. No tiene que hacer nada más ni tiene ningún costo.</div>`;
-    else if (est === "guardado") msg = `<div class="aviso aviso-ok" style="text-align:left">✅ <b>¡Cupo confirmado!</b>${i.confirmacion ? ` Confirmado el ${fecha(i.confirmacion.fecha)}.` : ""} CORPOSEPI se comunicará con usted para los siguientes pasos.</div>`;
+    else if (est === "guardado") msg = `<div class="aviso aviso-ok" style="text-align:left">✅ <b>¡Cupo confirmado!</b>${i.confirmacion ? ` Confirmado el ${fecha(i.confirmacion.fecha)}.` : ""} Ya puede ver la <b>factura de matrícula ${C.anio}</b>, reportar el pago y formalizar la matrícula.
+      <div style="margin-top:10px"><a class="btn btn-p" href="matricula.html?c=${encodeURIComponent(i.codigo)}&d=${encodeURIComponent(i.numDoc)}${window.CPS_DEMO}">🎓 Ver factura y matricular</a></div></div>`;
     else msg = `<div class="aviso aviso-r" style="text-align:left">Esta inscripción figura como <b>${st.txt.toLowerCase()}</b>. Comuníquese con CORPOSEPI.</div>`;
     const wa = cfg.whatsappSecretaria
       ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, inscribí a ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, modalidad ${i.modalidad || ""}. Mi código es ${i.codigo}.`)}">WhatsApp CORPOSEPI</a>` : "";

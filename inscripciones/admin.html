@@ -20,7 +20,15 @@
   .adm-top .der button:hover { background: rgba(255,255,255,.25); }
   .adm { max-width: 1200px; margin: 18px auto 40px; padding: 0 16px; }
   .demo { background: var(--alerta-suave); color: #6b4300; text-align: center; padding: 8px 16px; font-size: 14px; font-weight: 700; }
-  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .mat-box { background: #fff8f2; border: 1px solid #f1d3bf; border-radius: 12px; padding: 16px; margin: 14px 0; }
+  .mat-box h3 { margin: 0 0 8px; color: var(--rojo); }
+  .firmas-mini { display: flex; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
+  .firmas-mini div { border: 1px solid var(--linea); border-radius: 10px; padding: 6px 10px; text-align: center; font-size: 12px; background: #fff; }
+  .firmas-mini img { height: 40px; display: block; margin: 0 auto 2px; }
+  table.t-cfg { width: 100%; border-collapse: collapse; font-size: 14px; }
+  table.t-cfg td, table.t-cfg th { padding: 4px; border-bottom: 1px solid var(--linea); text-align: left; }
+  table.t-cfg input, table.t-cfg select { padding: 7px 8px; }
   .kpi { background: #fff; border-radius: 12px; padding: 14px 16px; box-shadow: var(--sombra); cursor: pointer; border: 2px solid transparent; }
   .kpi.on { border-color: var(--rojo); }
   .kpi .n { font-size: 28px; font-weight: 800; font-family: "Fraunces", serif; }
@@ -129,16 +137,27 @@
       <div class="c6"><label class="f">WhatsApp de CORPOSEPI</label><input name="whatsappSecretaria" type="tel" placeholder="3001234567"></div>
       <div class="sub">Cupos disponibles por grado del servicio de apoyo educativo</div>
       <div class="c12"><div class="grid" id="cfg-cupos"></div></div>
+
+      <div class="sub">Matrícula <span class="anio"></span> — valores por grado</div>
+      <div class="c12" style="overflow-x:auto"><table class="t-cfg" id="cfg-valores"></table></div>
+      <div class="c4"><label class="f">Fecha máxima de matrícula</label><input name="fechaLimite" type="date"></div>
+      <div class="c4"><label class="f">Meses de pensión</label><input name="mesesPension" type="number" min="1" max="12"></div>
+      <div class="c12"><label class="f">Medios de pago (aparece en la factura)</label><textarea name="mediosPago"></textarea></div>
+      <div class="sub">Descuentos</div>
+      <div class="c12" style="overflow-x:auto"><table class="t-cfg" id="cfg-desc"></table>
+        <button type="button" class="mini-btn" id="b-add-desc" style="margin-top:8px">+ Agregar descuento</button></div>
     </div>
     <div class="acciones"><button type="button" class="btn btn-s" data-cerrar>Cancelar</button><button class="btn btn-a">Guardar</button></div>
   </form>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
+<script src="docs.js"></script>
 <script>
 (async function () {
-  const { C, GRADOS, ESTADOS, Store, esc, fecha, nombreEst, estadoReal, telWa, hoja, imprimir, TIPOS, fotoSrc } = CPS;
+  const { C, GRADOS, ESTADOS, Store, esc, fecha, pesos, nombreEst, estadoReal, telWa, hoja, imprimir, TIPOS, fotoSrc } = CPS;
   const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
   $$(".anio").forEach(e => e.textContent = C.anio);
   const linkForm = location.href.replace(/admin\.html.*$/, "").replace(/[?#].*$/, "");
@@ -155,7 +174,19 @@
     $("#lbl-clave").textContent = "PIN de acceso (demo)";
   }
 
-  let lista = [], cfg = null, filtroKpi = "";
+  let lista = [], cfg = null, filtroKpi = "", mats = {}, filtroMat = "";
+  const linkMat = i => linkForm + "matricula.html?c=" + encodeURIComponent(i.codigo) + "&d=" + encodeURIComponent(i.numDoc) + window.CPS_DEMO;
+  // Etapa de matrícula de una inscripción con cupo confirmado
+  function etapaMat(i) {
+    if (i.estado !== "guardado") return null;
+    const m = mats[i.codigo], p = i.pagoMatricula;
+    if (m && m.estado === "confirmada") return { k: "matriculado", txt: "Matriculado " + C.anio, cls: "st-ok" };
+    if (m && m.estado === "enviada") return { k: "mat", txt: "Matrícula por revisar", cls: "st-pend" };
+    if (m && m.estado === "correccion") return { k: "corr", txt: "Matrícula en corrección", cls: "st-venc" };
+    if (p && p.estado === "revision") return { k: "pago", txt: "Pago por revisar", cls: "st-pend" };
+    if (p && p.estado === "aprobado") return { k: "folio", txt: "Pago aprobado · falta folio", cls: "st-lib" };
+    return { k: "factura", txt: "Pendiente de pago de matrícula", cls: "st-lib" };
+  }
 
   function entrar(u) {
     if (u && Store.modo === "firebase" && !Store.esAdmin(u)) {
@@ -188,7 +219,8 @@
 
   async function cargar() {
     try {
-      [lista, cfg] = await Promise.all([Store.listar(), Store.getConfig()]);
+      [lista, cfg, mats] = await Promise.all([Store.listar(), Store.getConfig(), Store.get("matriculas_" + C.anio)]);
+      mats = mats || {};
       lista.sort((a, b) => b.creado.localeCompare(a.creado));
       pintar();
     } catch (e) {
@@ -217,7 +249,12 @@
       k("guardado", c.guardado, "Cupos confirmados", "var(--ok)") +
       k("liberado", c.liberado, "Cupo no asignado", "var(--gris)") +
       `<div class="kpi" style="cursor:default"><div class="n" style="color:var(--gris)">${espera}</div><div class="l">En lista de espera</div></div>`;
-    $$(".kpi[data-k]").forEach(d => d.onclick = () => { filtroKpi = d.dataset.k; $("#f-est").value = filtroKpi; pintarLista(); pintarKpis(); });
+    const cm = {}; lista.forEach(i => { const e = etapaMat(i); if (e) cm[e.k] = (cm[e.k] || 0) + 1; });
+    const km = (id, n, l, color) => `<div class="kpi ${filtroMat === id ? "on" : ""}" data-m="${id}"><div class="n" style="color:${color}">${n || 0}</div><div class="l">${l}</div></div>`;
+    $("#kpis").innerHTML += km("pago", cm.pago, "Pagos de matrícula por revisar", "var(--alerta)") +
+      km("mat", cm.mat, "Matrículas por revisar", "var(--alerta)") + km("matriculado", cm.matriculado, "Matriculados " + C.anio, "var(--ok)");
+    $$(".kpi[data-k]").forEach(d => d.onclick = () => { filtroKpi = d.dataset.k; filtroMat = ""; $("#f-est").value = filtroKpi; pintarLista(); pintarKpis(); });
+    $$(".kpi[data-m]").forEach(d => d.onclick = () => { filtroMat = filtroMat === d.dataset.m ? "" : d.dataset.m; filtroKpi = ""; $("#f-est").value = ""; pintarLista(); pintarKpis(); });
   }
 
   function pintarCupos() {
@@ -239,6 +276,7 @@
   function filtrada() {
     const q = $("#q").value.trim().toLowerCase(), est = $("#f-est").value, gra = $("#f-gra").value, mod = $("#f-mod").value;
     return lista.filter(i => {
+      if (filtroMat && (etapaMat(i) || {}).k !== filtroMat) return false;
       if (mod && i.modalidad !== mod) return false;
       if (est && estadoReal(i) !== est) return false;
       if (!est && i.estado === "anulado") return false;
@@ -263,9 +301,112 @@
           <td>${esc(i.grado)}${i.modalidad ? `<br><small style="color:var(--gris)">${esc(i.modalidad)}</small>` : ""}${i.listaEspera ? '<br><small style="color:var(--alerta)">lista de espera</small>' : ""}</td>
           <td>${esc(i.acuNombre)}<br><small style="color:var(--gris)">${esc(i.acuTel)}</small></td>
           <td>${fecha(i.creado)}</td>
-          <td><span class="pill ${st.cls}">${st.txt}</span></td></tr>`;
+          <td><span class="pill ${st.cls}">${st.txt}</span>${etapaMat(i) ? `<br><span class="pill ${etapaMat(i).cls}" style="margin-top:4px">${etapaMat(i).txt}</span>` : ""}</td></tr>`;
       }).join("") + "</tbody>";
     $$("#t-ins tr[data-c]").forEach(tr => tr.onclick = () => detalle(tr.dataset.c));
+  }
+
+  // ---------- matrícula 2027: pago, folio, carné y cartera ----------
+  const RM = "matriculas_" + C.anio, RD = "matriculas_" + C.anio + "_docs";
+  function cajaMatricula(i) {
+    const p = i.pagoMatricula, m = mats[i.codigo], k = CPS.calcFactura(i, cfg, p && p.fecha);
+    let h = `<div class="mat-box"><h3>🎓 Matrícula ${C.anio}</h3>
+      <div style="font-size:14px">Factura: <b>${esc((i.factura && i.factura.numero) || "aún no abierta por la familia")}</b> · Valor matrícula: <b>${pesos(k.base)}</b>${k.desc ? ` · con descuento a la fecha del pago: <b>${pesos(k.total)}</b>` : ""} · Pensión: <b>${pesos(k.pension)}</b>/mes</div>
+      <div class="acciones" style="margin:10px 0 0;justify-content:flex-start">
+        <button type="button" class="btn btn-s" id="m-fact">🧾 Ver factura</button>
+        <button type="button" class="btn btn-s" id="m-link">🔗 Copiar link de matrícula</button></div>`;
+    if (!p) h += `<p class="ayuda" style="margin:10px 0 0">La familia aún no ha reportado el pago de la matrícula.</p>`;
+    else {
+      h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>💵 Pago reportado:</b> ${pesos(p.valor)} · ${fecha(p.fecha)} · ${esc(p.medio)}${p.ref ? " · Ref. " + esc(p.ref) : ""}
+        <br><small>Reportado el ${fecha(p.enviado, true)}</small>
+        ${p.estado === "aprobado" ? `<br><b style="color:var(--ok)">✅ Aprobado</b> por ${esc(p.aprobadoPor || "")} el ${fecha(p.aprobado, true)}` : ""}
+        ${p.estado === "rechazado" ? `<br><b style="color:var(--rojo)">✕ Rechazado:</b> ${esc(p.motivo || "")}` : ""}
+        <div class="acciones" style="margin:10px 0 0;justify-content:flex-start">
+          <button type="button" class="btn btn-s" id="m-soporte">📎 Ver soporte</button>
+          ${p.estado === "revision" ? `<button type="button" class="btn btn-ok" id="m-aprobar">✓ Aprobar pago</button><button type="button" class="btn btn-s" id="m-rechazar" style="color:var(--rojo)">Rechazar</button>` : ""}
+        </div></div>`;
+    }
+    if (m) {
+      const fs = DOCS.firmantes(i);
+      h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>📁 Folio de matrícula N.° ${esc(m.folio)}</b> · enviado el ${fecha(m.enviada, true)}
+        ${m.estado === "confirmada" ? `<br><b style="color:var(--ok)">✅ Matrícula confirmada</b> el ${fecha(m.confirmada, true)} · Carné <b>${esc(m.carnet || "")}</b>` : ""}
+        ${m.estado === "correccion" ? `<br><b style="color:var(--rojo)">Corrección solicitada:</b> ${esc(m.motivo || "")}` : ""}
+        <div style="margin-top:8px"><b>Documentos:</b> ${Object.entries(m.docs || {}).map(([dk, d]) => `<button type="button" class="mini-btn" data-doc="${dk}" style="margin:3px 4px 0 0">${esc(d.titulo)}</button>`).join("")}</div>
+        <div class="firmas-mini">${fs.map(f => `<div>${(m.firmas || {})[f.k] ? `<img src="${esc(m.firmas[f.k].img)}" alt="">` : "<i>sin firma</i>"}${esc(f.rol)}</div>`).join("")}</div>
+        <div class="acciones" style="margin:8px 0 0;justify-content:flex-start">
+          <button type="button" class="btn btn-s" data-imp="folio">🖨️ Folio</button><button type="button" class="btn btn-s" data-imp="contrato">Contrato</button><button type="button" class="btn btn-s" data-imp="pagare">Pagaré y carta</button>
+          ${m.estado === "enviada" ? `<button type="button" class="btn btn-ok" id="m-confirmar">✓ Confirmar matrícula y generar carné</button><button type="button" class="btn btn-s" id="m-corregir" style="color:var(--rojo)">Pedir corrección</button>` : ""}
+          ${m.estado === "confirmada" && m.carnet ? `<a class="btn btn-ok" href="carnet.html?id=${encodeURIComponent(m.carnet)}${window.CPS_DEMO}" target="_blank" rel="noopener">🪪 Ver carné</a>` : ""}
+        </div></div>`;
+    }
+    return h + `</div>`;
+  }
+
+  function enlazarMatricula(i, usuario, cambiar) {
+    const on = (id, fn) => { const b = $(id); if (b) b.onclick = fn; };
+    const m = mats[i.codigo];
+    on("#m-fact", () => imprimir(DOCS.factura(i, cfg)));
+    on("#m-link", async () => { try { await navigator.clipboard.writeText(linkMat(i)); toast("Link copiado"); } catch (e) { prompt("Link de matrícula:", linkMat(i)); } });
+    on("#m-soporte", async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/soportePago")));
+    on("#m-aprobar", () => cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "aprobado", aprobado: new Date().toISOString(), aprobadoPor: usuario }) }, "Pago aprobado ✓ — la familia ya puede firmar la matrícula"));
+    on("#m-rechazar", () => { const mo = prompt("Motivo del rechazo (la familia lo verá):"); if (mo) cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "rechazado", motivo: mo }) }, "Pago rechazado"); });
+    $$("#det [data-doc]").forEach(b => b.onclick = async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/" + b.dataset.doc)));
+    $$("#det [data-imp]").forEach(b => b.onclick = () => imprimir(b.dataset.imp === "folio" ? DOCS.folio(i, m) : b.dataset.imp === "contrato" ? DOCS.contrato(i, m, cfg) : DOCS.pagare(i, m)));
+    on("#m-corregir", async () => {
+      const mo = prompt("¿Qué debe corregir la familia? (lo verá al entrar)"); if (!mo) return;
+      await Store.patch(RM + "/" + i.codigo, { estado: "correccion", motivo: mo }); mats[i.codigo] = Object.assign({}, m, { estado: "correccion", motivo: mo });
+      pintar(); detalle(i.codigo); toast("Corrección solicitada");
+    });
+    on("#m-confirmar", async () => {
+      if (!confirm(`¿Confirmar la matrícula ${C.anio} de ${nombreEst(i)}?\n\nSe generará el carné digital ${C.anio} y se registrará en la cartera ${C.anio}.`)) return;
+      const b = $("#m-confirmar"); b.disabled = true; b.textContent = "Generando…";
+      try {
+        const r = await confirmarMatricula(i, m, usuario);
+        mats[i.codigo] = r; pintar(); detalle(i.codigo); toast("Matrícula confirmada · carné " + r.carnet + " ✓");
+      } catch (e) { console.error(e); toast("No se pudo confirmar: " + e.message); b.disabled = false; }
+    });
+  }
+
+  // Al confirmar: carné 2027 (nodo carnets_2027) + cartera 2027 (familias_2027 / pagos_2027). No toca nada de 2026.
+  async function confirmarMatricula(i, m, usuario) {
+    const A = C.anio, hoy = new Date();
+    let id = m.carnet;
+    if (!id) {
+      const n = await Store.siguiente("carnets_" + A + "_meta/seq");
+      id = "CORP-" + A + "-" + String(n).padStart(4, "0");
+      const carnet = {
+        id, type: "student", ano: String(A), vigencia: "DIC-" + A, status: "active", theme: "light", fnx: "0.00", wallet: "",
+        nombres: [i.nombre1, i.nombre2].filter(Boolean).join(" ").toUpperCase(), apellidos: [i.apellido1, i.apellido2].filter(Boolean).join(" ").toUpperCase(),
+        tipodoc: i.tipoDoc || "", numdoc: i.numDoc, grado: String(i.grado).toUpperCase(), nivel: CPS.nivelDe(i.grado), jornada: i.modalidad || "",
+        cel: i.acuTel || "", correo: m.acuCorreo || i.acuCorreo || "", photo: i.foto || "", rh: i.rh || "", eps: i.eps || "",
+        emergencia: [i.emeNombre, i.emeTel].filter(Boolean).join(" · "), acudiente: i.acuNombre || "",
+        fecha: hoy.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" }),
+        folio: m.folio, inscripcion: i.codigo, creado: hoy.toISOString()
+      };
+      await Store.set("carnets_" + A + "/" + id, carnet);
+    }
+    // Cartera 2027 — mismo formato que la cartera actual (familias_v3 / pagos_v3)
+    if (!m.carteraAplicada) {
+      const cc = String(i.acuCC || "").replace(/\D/g, "");
+      const k = CPS.calcFactura(i, cfg, i.pagoMatricula && i.pagoMatricula.fecha);
+      const hijo = { nom: nombreEst(i).toUpperCase(), doc: i.numDoc, grado: String(i.grado).toUpperCase(), jornada: i.modalidad || "", matricula: k.total, pension: k.pension, carnet: id, folio: m.folio };
+      const fam = await Store.get("familias_" + A + "/" + cc);
+      if (fam) {
+        const hijos = (fam.hijos || []).filter(h => h.doc !== hijo.doc); hijos.push(hijo);
+        await Store.patch("familias_" + A + "/" + cc, { hijos });
+      } else {
+        await Store.set("familias_" + A + "/" + cc, {
+          cc, padre: i.acuNombre || "", parentesco: i.acuParentesco || "", tipodoc: "CC", tel: i.acuTel || "", email: m.acuCorreo || i.acuCorreo || "",
+          direccion: i.direccion || "", barrio: i.barrio || "", estrato: "", ocupacion: "", observaciones: "Matrícula " + A + " en línea",
+          fechaReg: CPS.hoyISO(), inicio: 0, diaVence: "Día 5", hijos: [hijo]
+        });
+      }
+      const pg = (await Store.get("pagos_" + A + "/f_" + cc)) || {};
+      await Store.patch("pagos_" + A + "/f_" + cc, { matricula_total: (Number(pg.matricula_total) || 0) + (Number(i.pagoMatricula && i.pagoMatricula.valor) || 0) });
+    }
+    const r = Object.assign({}, m, { estado: "confirmada", confirmada: hoy.toISOString(), confirmadaPor: usuario, carnet: id, carteraAplicada: true });
+    await Store.patch(RM + "/" + i.codigo, { estado: "confirmada", confirmada: r.confirmada, confirmadaPor: usuario, carnet: id, carteraAplicada: true });
+    return r;
   }
 
   // ---------- detalle ----------
@@ -276,7 +417,7 @@
     const hoy = CPS.hoyISO();
     const waAcu = telWa(i.acuTel);
     const msgRec = est === "guardado"
-      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, modalidad ${i.modalidad || "—"}, quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!`
+      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, modalidad ${i.modalidad || "—"}, quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!\n\nAquí puede ver la factura de matrícula, reportar el pago y formalizar la matrícula con las firmas:\n${linkMat(i)}`
       : `Hola ${i.acuNombre}. Recibimos la inscripción de ${nombreEst(i)} al servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio} (código ${i.codigo}). Estamos revisándola y pronto le confirmaremos el cupo. CORPOSEPI.`;
 
     let acciones = "";
@@ -300,11 +441,12 @@
         <span class="pill ${st.cls}" style="margin-top:6px">${st.txt}</span><button class="x" data-cerrar>✕</button></div>
       ${i.listaEspera && i.estado !== "guardado" ? `<div class="aviso aviso-a">Se inscribió cuando el grado estaba lleno (lista de espera).</div>` : ""}
       ${acciones}
+      ${i.estado === "guardado" ? cajaMatricula(i) : ""}
       <div class="acciones" style="margin:0 0 14px;justify-content:flex-start">
         <button class="btn btn-a" id="d-imp">🖨️ Imprimir formulario</button>
         ${waAcu ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${waAcu}?text=${encodeURIComponent(msgRec)}">📲 ${est === "guardado" ? "Avisar confirmación" : "Avisar recibido"} por WhatsApp</a>` : ""}
         ${i.estado === "pendiente" ? `<button class="btn btn-s" id="d-liberar">No asignar cupo</button>` : ""}
-        ${i.estado === "guardado" ? `<button class="btn btn-s" id="d-revertir">Revertir confirmación</button>` : ""}
+        ${i.estado === "guardado" && !i.pagoMatricula && !mats[i.codigo] ? `<button class="btn btn-s" id="d-revertir">Revertir confirmación</button>` : ""}
         ${i.estado === "liberado" || i.estado === "anulado" ? `<button class="btn btn-s" id="d-reactivar">Reactivar inscripción</button>` : ""}
         ${i.estado !== "anulado" && i.estado !== "guardado" ? `<button class="btn btn-s" id="d-anular" style="color:var(--rojo)">Anular</button>` : ""}
       </div>
@@ -342,6 +484,7 @@
       } catch (e) { console.error(e); toast("No se pudo guardar: " + e.message); }
     }
     $("#d-imp").onclick = () => imprimir(hoja(i));
+    enlazarMatricula(i, usuario, cambiar);
     $("#d-foto").onchange = async ev => {
       const file = ev.target.files[0]; ev.target.value = "";
       if (!file) return;
@@ -373,6 +516,21 @@
     f.abierto.checked = cfg.abierto;
     ["fechaCierre", "whatsappSecretaria"].forEach(k => f[k].value = cfg[k] ?? "");
     $("#cfg-cupos").innerHTML = GRADOS.map(g => `<div class="c3"><label class="f">${g}</label><input type="number" min="0" data-g="${g}" value="${cfg.cupos[g] || 0}"></div>`).join("");
+    const mt = cfg.matricula;
+    $("#cfg-valores").innerHTML = `<tr><th>Grado</th><th>Matrícula</th><th>Pensión mensual</th></tr>` + GRADOS.map(g => `<tr><td><b>${g}</b></td>
+      <td><input type="number" min="0" step="1000" data-vg="${g}" data-vk="matricula" value="${mt.valores[g].matricula}"></td>
+      <td><input type="number" min="0" step="1000" data-vg="${g}" data-vk="pension" value="${mt.valores[g].pension}"></td></tr>`).join("");
+    f.fechaLimite.value = mt.fechaLimite || ""; f.mesesPension.value = mt.mesesPension || 10; f.mediosPago.value = mt.mediosPago || "";
+    const filaDesc = (id, d) => `<tr data-d="${id}"><td><input data-dk="nombre" value="${esc(d.nombre || "")}" placeholder="Ej.: Pago en diciembre"></td>
+      <td><select data-dk="aplica"><option value="matricula" ${d.aplica === "matricula" ? "selected" : ""}>Matrícula</option><option value="pension" ${d.aplica === "pension" ? "selected" : ""}>Pensiones</option></select></td>
+      <td><input data-dk="pct" type="number" min="0" max="100" value="${d.pct || 0}" style="width:70px"> %</td>
+      <td><input data-dk="hasta" type="date" value="${d.hasta || ""}"></td>
+      <td><select data-dk="para"><option value="todos">Todos</option><option value="nuevo" ${d.para === "nuevo" ? "selected" : ""}>Nuevos</option><option value="continuidad" ${d.para === "continuidad" ? "selected" : ""}>Continuidad</option></select></td>
+      <td><button type="button" class="mini-btn" data-del>🗑</button></td></tr>`;
+    $("#cfg-desc").innerHTML = `<tr><th>Descuento</th><th>Aplica a</th><th>%</th><th>Pagando hasta</th><th>Para</th><th></th></tr>` +
+      Object.entries(mt.descuentos || {}).map(([id, d]) => filaDesc(id, d)).join("");
+    $("#b-add-desc").onclick = () => $("#cfg-desc").insertAdjacentHTML("beforeend", filaDesc("d" + Date.now(), { aplica: "matricula", pct: 0, para: "todos" }));
+    $("#cfg-desc").onclick = e => { if (e.target.matches("[data-del]")) e.target.closest("tr").remove(); };
     $("#m-cfg").hidden = false;
   };
   $("#fcfg").onsubmit = async ev => {
@@ -385,6 +543,16 @@
       cupos: {}
     });
     $$("#cfg-cupos input").forEach(i => n.cupos[i.dataset.g] = Number(i.value) || 0);
+    const valores = {};
+    GRADOS.forEach(g => valores[g] = {});
+    $$("#cfg-valores [data-vg]").forEach(x => valores[x.dataset.vg][x.dataset.vk] = Number(x.value) || 0);
+    const descuentos = {};
+    $$("#cfg-desc tr[data-d]").forEach(tr => {
+      const d = {}; tr.querySelectorAll("[data-dk]").forEach(x => d[x.dataset.dk] = x.dataset.dk === "pct" ? Number(x.value) || 0 : x.value.trim());
+      if (d.nombre && d.pct > 0) descuentos[tr.dataset.d] = d;
+    });
+    // (la base de datos borra los objetos vacíos: "false" = sin descuentos)
+    n.matricula = { valores, descuentos: Object.keys(descuentos).length ? descuentos : false, fechaLimite: f.fechaLimite.value, mesesPension: Number(f.mesesPension.value) || 10, mediosPago: f.mediosPago.value.trim() };
     try { await Store.saveConfig(n); cfg = n; pintar(); $("#m-cfg").hidden = true; toast("Configuración guardada"); }
     catch (e) { toast("No se pudo guardar: " + e.message); }
   };
