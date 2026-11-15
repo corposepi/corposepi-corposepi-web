@@ -259,7 +259,7 @@
         <tr>${td("Fecha de nacimiento", i.fechaNacimiento)}${td("Edad", i.edad)}${td("EPS", i.eps)}${td("RH", i.rh)}</tr>
         <tr>${td("Dirección", i.direccion, 2)}${td("Torre/bloque · Casa/Apto", [i.torre, i.apto].filter(Boolean).join(" · "))}${td("Conjunto", i.conjunto)}</tr>
         <tr>${td("Barrio", i.barrio, 2)}${td("Grado del servicio de apoyo educativo", i.grado, 2)}</tr>
-        <tr>${td("Tipo de estudiante", TIPOS[i.tipoEstudiante] || "", 4)}</tr>
+        <tr>${td("Tipo de estudiante", TIPOS[i.tipoEstudiante] || "", 2)}${td("Modalidad del servicio", i.modalidad, 2)}</tr>
         <tr>${td("Alergias", i.alergias, 2)}${td("Enfermedades", i.enfermedades, 2)}</tr>
         <tr>${td("Cuidados especiales", i.cuidados, 2)}${td("Rechazo algún alimento", i.rechazoAlimento, 2)}</tr>
         <tr>${td("El estudiante vive con", (i.viveCon || "") + (i.viveConOtro ? ": " + i.viveConOtro : ""), 4)}</tr>
@@ -291,5 +291,7 @@
     if (img && !img.complete) img.onload = () => window.print(); else window.print();
   }
 
-  window.CPS = { C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
+  const MODALIDADES = ["Presencial", "Semipresencial", "Virtual"];
+
+  window.CPS = { MODALIDADES, C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
 })();

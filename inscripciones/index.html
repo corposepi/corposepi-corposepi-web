@@ -103,6 +103,12 @@
           <div class="c12"><label class="f">Grado del servicio de apoyo educativo <span class="anio">2027</span> <span class="req">*</span></label>
             <select name="grado" id="grado" required></select>
             <div class="nota" id="cupo-txt"></div></div>
+          <div class="c12"><label class="f">Modalidad del servicio <span class="req">*</span></label>
+            <div class="chips">
+              <label><input type="radio" name="modalidad" value="Presencial" required> 🏫 Presencial</label>
+              <label><input type="radio" name="modalidad" value="Semipresencial"> 🔀 Semipresencial</label>
+              <label><input type="radio" name="modalidad" value="Virtual"> 💻 Virtual</label>
+            </div></div>
         </div>
       </div>
 
@@ -401,7 +407,7 @@
     if (!malos.length) return true;
     F.classList.add("mostrar-err");
     const nombres = [...new Set(malos.map(c => {
-      const l = c.closest("div")?.querySelector("label.f") || c.closest("label");
+      const l = c.closest(".grid > div")?.querySelector("label.f") || c.closest("label");
       return (l ? l.textContent : c.name).replace("*", "").trim().slice(0, 60);
     }))];
     $("#err").innerHTML = "<b>Revise estos campos:</b> " + nombres.map(esc).join(" · ");
@@ -443,7 +449,7 @@
     else if (est === "guardado") msg = `<div class="aviso aviso-ok" style="text-align:left">✅ <b>¡Cupo confirmado!</b>${i.confirmacion ? ` Confirmado el ${fecha(i.confirmacion.fecha)}.` : ""} CORPOSEPI se comunicará con usted para los siguientes pasos.</div>`;
     else msg = `<div class="aviso aviso-r" style="text-align:left">Esta inscripción figura como <b>${st.txt.toLowerCase()}</b>. Comuníquese con CORPOSEPI.</div>`;
     const wa = cfg.whatsappSecretaria
-      ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, inscribí a ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}. Mi código es ${i.codigo}.`)}">WhatsApp CORPOSEPI</a>` : "";
+      ? `<a class="btn btn-ok" target="_blank" rel="noopener" href="https://wa.me/${telWa(cfg.whatsappSecretaria)}?text=${encodeURIComponent(`Hola, inscribí a ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, modalidad ${i.modalidad || ""}. Mi código es ${i.codigo}.`)}">WhatsApp CORPOSEPI</a>` : "";
     cont.innerHTML = `
       ${nuevo ? `<div style="font-size:46px">🎉</div><h2>¡Inscripción recibida!</h2>` : `<h2>Estado de la inscripción</h2>`}
       <p class="ayuda">${nuevo ? "Guarde este código: con él puede consultar si su cupo ya fue confirmado." : ""}</p>
@@ -454,6 +460,7 @@
         <dt>Estudiante</dt><dd>${esc(nombreEst(i))}</dd>
         <dt>Tipo</dt><dd>${esc(CPS.TIPOS[i.tipoEstudiante] || "—")}</dd>
         <dt>Grado del servicio de apoyo educativo ${C.anio}</dt><dd>${esc(i.grado)}</dd>
+        <dt>Modalidad</dt><dd>${esc(i.modalidad || "—")}</dd>
         <dt>Acudiente</dt><dd>${esc(i.acuNombre)}</dd>
         <dt>Diligenciado</dt><dd>${fecha(i.creado, true)}</dd>
         <dt>Valor inscripción</dt><dd>Sin costo</dd>

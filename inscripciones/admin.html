@@ -109,6 +109,7 @@
         <input id="q" placeholder="Buscar por nombre, documento, código o acudiente…">
         <select id="f-est"><option value="">Todos los estados</option></select>
         <select id="f-gra"><option value="">Todos los grados</option></select>
+        <select id="f-mod"><option value="">Todas las modalidades</option></select>
       </div>
       <div class="tabla-wrap"><table class="t" id="t-ins"></table></div>
     </div>
@@ -199,7 +200,8 @@
   // ---------- pintar ----------
   $("#f-est").innerHTML += Object.entries(ESTADOS).map(([k, v]) => `<option value="${k}">${v.txt}</option>`).join("");
   $("#f-gra").innerHTML += GRADOS.map(g => `<option>${g}</option>`).join("");
-  ["#q", "#f-est", "#f-gra"].forEach(s => $(s).addEventListener("input", () => { if (s === "#f-est") filtroKpi = $("#f-est").value; pintarLista(); pintarKpis(); }));
+  $("#f-mod").innerHTML += CPS.MODALIDADES.map(m => `<option>${m}</option>`).join("");
+  ["#q", "#f-est", "#f-gra", "#f-mod"].forEach(s => $(s).addEventListener("input", () => { if (s === "#f-est") filtroKpi = $("#f-est").value; pintarLista(); pintarKpis(); }));
 
   function pintar() { pintarKpis(); pintarCupos(); pintarLista(); }
 
@@ -235,8 +237,9 @@
   }
 
   function filtrada() {
-    const q = $("#q").value.trim().toLowerCase(), est = $("#f-est").value, gra = $("#f-gra").value;
+    const q = $("#q").value.trim().toLowerCase(), est = $("#f-est").value, gra = $("#f-gra").value, mod = $("#f-mod").value;
     return lista.filter(i => {
+      if (mod && i.modalidad !== mod) return false;
       if (est && estadoReal(i) !== est) return false;
       if (!est && i.estado === "anulado") return false;
       if (gra && i.grado !== gra) return false;
@@ -257,7 +260,7 @@
         return `<tr class="click" data-c="${esc(i.codigo)}">
           <td class="mono">${esc(i.codigo)}</td>
           <td><b>${esc(nombreEst(i))}</b>${fotoSrc(i) ? " 📷" : ""}<br><small style="color:var(--gris)">${esc(i.tipoDoc)} ${esc(i.numDoc)} · ${i.tipoEstudiante === "continuidad" ? "Continuidad" : i.tipoEstudiante === "nuevo" ? "Nuevo" : ""}</small></td>
-          <td>${esc(i.grado)}${i.listaEspera ? '<br><small style="color:var(--alerta)">lista de espera</small>' : ""}</td>
+          <td>${esc(i.grado)}${i.modalidad ? `<br><small style="color:var(--gris)">${esc(i.modalidad)}</small>` : ""}${i.listaEspera ? '<br><small style="color:var(--alerta)">lista de espera</small>' : ""}</td>
           <td>${esc(i.acuNombre)}<br><small style="color:var(--gris)">${esc(i.acuTel)}</small></td>
           <td>${fecha(i.creado)}</td>
           <td><span class="pill ${st.cls}">${st.txt}</span></td></tr>`;
@@ -273,7 +276,7 @@
     const hoy = CPS.hoyISO();
     const waAcu = telWa(i.acuTel);
     const msgRec = est === "guardado"
-      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!`
+      ? `Hola ${i.acuNombre}. Le confirmamos que el cupo de ${nombreEst(i)} en el servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio}, modalidad ${i.modalidad || "—"}, quedó CONFIRMADO. Código: ${i.codigo}. ¡Bienvenidos!`
       : `Hola ${i.acuNombre}. Recibimos la inscripción de ${nombreEst(i)} al servicio de apoyo educativo de CORPOSEPI, grado ${i.grado} ${C.anio} (código ${i.codigo}). Estamos revisándola y pronto le confirmaremos el cupo. CORPOSEPI.`;
 
     let acciones = "";
@@ -309,7 +312,7 @@
         ${d("Documento", i.tipoDoc + " " + i.numDoc)}${d("Expedido en", i.expedidoEn)}
         ${d("Fecha de nacimiento", i.fechaNacimiento + (i.edad ? " (" + i.edad + ")" : ""))}${d("Lugar de nacimiento / Nacionalidad", [i.lugarNacimiento, i.nacionalidad].filter(Boolean).join(" · "))}
         ${d("EPS · RH", [i.eps, i.rh].filter(Boolean).join(" · "))}${d("Grado del servicio de apoyo educativo", i.grado)}
-        ${d("Tipo de estudiante", TIPOS[i.tipoEstudiante])}
+        ${d("Tipo de estudiante", TIPOS[i.tipoEstudiante])}${d("Modalidad del servicio", i.modalidad)}
         ${d("Dirección", [i.direccion, i.torre && "Torre " + i.torre, i.apto && "Apto " + i.apto, i.conjunto].filter(Boolean).join(", "))}${d("Barrio", i.barrio)}
         ${d("Vive con", (i.viveCon || "") + (i.viveConOtro ? ": " + i.viveConOtro : ""))}
         <h4>Salud</h4>
@@ -388,7 +391,7 @@
   $("#b-wa").onclick = () => window.open("https://wa.me/?text=" + encodeURIComponent(textoPadres()), "_blank", "noopener");
 
   $("#b-csv").onclick = () => {
-    const cols = [["codigo", "Código"], ["_estado", "Estado"], ["_tipo", "Tipo"], ["grado", "Grado apoyo educativo"], ["nombre1", "1er nombre"], ["nombre2", "2do nombre"], ["apellido1", "1er apellido"], ["apellido2", "2do apellido"],
+    const cols = [["codigo", "Código"], ["_estado", "Estado"], ["_tipo", "Tipo"], ["grado", "Grado apoyo educativo"], ["modalidad", "Modalidad"], ["nombre1", "1er nombre"], ["nombre2", "2do nombre"], ["apellido1", "1er apellido"], ["apellido2", "2do apellido"],
       ["tipoDoc", "Tipo doc"], ["numDoc", "Documento"], ["expedidoEn", "Expedido en"], ["fechaNacimiento", "Nacimiento"], ["edad", "Edad"], ["nacionalidad", "Nacionalidad"], ["lugarNacimiento", "Lugar nac."],
       ["eps", "EPS"], ["rh", "RH"], ["direccion", "Dirección"], ["torre", "Torre"], ["apto", "Apto"], ["conjunto", "Conjunto"], ["barrio", "Barrio"],
       ["alergias", "Alergias"], ["enfermedades", "Enfermedades"], ["cuidados", "Cuidados"], ["rechazoAlimento", "Rechazo alimento"], ["viveCon", "Vive con"],
