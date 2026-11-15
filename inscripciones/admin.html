@@ -308,9 +308,9 @@
         <h4>Estudiante</h4>
         ${d("Documento", i.tipoDoc + " " + i.numDoc)}${d("Expedido en", i.expedidoEn)}
         ${d("Fecha de nacimiento", i.fechaNacimiento + (i.edad ? " (" + i.edad + ")" : ""))}${d("Lugar de nacimiento / Nacionalidad", [i.lugarNacimiento, i.nacionalidad].filter(Boolean).join(" · "))}
-        ${d("EPS · RH · Sisbén", [i.eps, i.rh, i.sisben].filter(Boolean).join(" · "))}${d("Grado del servicio de apoyo educativo", i.grado)}
+        ${d("EPS · RH", [i.eps, i.rh].filter(Boolean).join(" · "))}${d("Grado del servicio de apoyo educativo", i.grado)}
         ${d("Tipo de estudiante", TIPOS[i.tipoEstudiante])}
-        ${d("Dirección", [i.direccion, i.torre && "Torre " + i.torre, i.apto && "Apto " + i.apto, i.conjunto].filter(Boolean).join(", "))}${d("Barrio · Estrato", [i.barrio, i.estrato && "Estrato " + i.estrato].filter(Boolean).join(" · "))}
+        ${d("Dirección", [i.direccion, i.torre && "Torre " + i.torre, i.apto && "Apto " + i.apto, i.conjunto].filter(Boolean).join(", "))}${d("Barrio", i.barrio)}
         ${d("Vive con", (i.viveCon || "") + (i.viveConOtro ? ": " + i.viveConOtro : ""))}
         <h4>Salud</h4>
         ${d("Alergias", i.alergias)}${d("Enfermedades", i.enfermedades)}${d("Cuidados especiales", i.cuidados)}${d("Rechazo de alimentos", i.rechazoAlimento)}
@@ -390,7 +390,7 @@
   $("#b-csv").onclick = () => {
     const cols = [["codigo", "Código"], ["_estado", "Estado"], ["_tipo", "Tipo"], ["grado", "Grado apoyo educativo"], ["nombre1", "1er nombre"], ["nombre2", "2do nombre"], ["apellido1", "1er apellido"], ["apellido2", "2do apellido"],
       ["tipoDoc", "Tipo doc"], ["numDoc", "Documento"], ["expedidoEn", "Expedido en"], ["fechaNacimiento", "Nacimiento"], ["edad", "Edad"], ["nacionalidad", "Nacionalidad"], ["lugarNacimiento", "Lugar nac."],
-      ["eps", "EPS"], ["rh", "RH"], ["sisben", "Sisbén"], ["direccion", "Dirección"], ["torre", "Torre"], ["apto", "Apto"], ["conjunto", "Conjunto"], ["barrio", "Barrio"], ["estrato", "Estrato"],
+      ["eps", "EPS"], ["rh", "RH"], ["direccion", "Dirección"], ["torre", "Torre"], ["apto", "Apto"], ["conjunto", "Conjunto"], ["barrio", "Barrio"],
       ["alergias", "Alergias"], ["enfermedades", "Enfermedades"], ["cuidados", "Cuidados"], ["rechazoAlimento", "Rechazo alimento"], ["viveCon", "Vive con"],
       ["madreNombre", "Madre"], ["madreCC", "CC madre"], ["madreCel", "Cel madre"], ["madreCorreo", "Correo madre"], ["madreTrabajo", "Trabajo madre"],
       ["padreNombre", "Padre"], ["padreCC", "CC padre"], ["padreCel", "Cel padre"], ["padreCorreo", "Correo padre"], ["padreTrabajo", "Trabajo padre"],

@@ -256,9 +256,9 @@
       <table>
         <tr>${td("1er. Nombre", i.nombre1)}${td("2do. Nombre", i.nombre2)}${td("1er. Apellido", i.apellido1)}${td("2do. Apellido", i.apellido2)}</tr>
         <tr>${td("Documento", (i.tipoDoc || "") + " " + (i.numDoc || ""))}${td("Expedido en", i.expedidoEn)}${td("Nacionalidad", i.nacionalidad)}${td("Lugar de nacimiento", i.lugarNacimiento)}</tr>
-        <tr>${td("Fecha de nacimiento", i.fechaNacimiento)}${td("Edad", i.edad)}${td("EPS", i.eps)}${td("RH / Sisbén", (i.rh || "") + " / " + (i.sisben || ""))}</tr>
+        <tr>${td("Fecha de nacimiento", i.fechaNacimiento)}${td("Edad", i.edad)}${td("EPS", i.eps)}${td("RH", i.rh)}</tr>
         <tr>${td("Dirección", i.direccion, 2)}${td("Torre/bloque · Casa/Apto", [i.torre, i.apto].filter(Boolean).join(" · "))}${td("Conjunto", i.conjunto)}</tr>
-        <tr>${td("Barrio", i.barrio)}${td("Estrato", i.estrato)}${td("Grado del servicio de apoyo educativo", i.grado, 2)}</tr>
+        <tr>${td("Barrio", i.barrio, 2)}${td("Grado del servicio de apoyo educativo", i.grado, 2)}</tr>
         <tr>${td("Tipo de estudiante", TIPOS[i.tipoEstudiante] || "", 4)}</tr>
         <tr>${td("Alergias", i.alergias, 2)}${td("Enfermedades", i.enfermedades, 2)}</tr>
         <tr>${td("Cuidados especiales", i.cuidados, 2)}${td("Rechazo algún alimento", i.rechazoAlimento, 2)}</tr>
