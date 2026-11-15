@@ -122,6 +122,11 @@
       <form id="fpago" class="card" style="box-shadow:none;border:1.5px solid var(--linea)">
         <h2>Reportar pago de matrícula</h2>
         <p class="ayuda">Cuando haya pagado, suba la foto o PDF del comprobante. CORPOSEPI lo revisará y le habilitará el folio de matrícula.</p>
+        <label class="f">¿Cómo pagó? <span class="req">*</span></label>
+        <div class="chips" style="margin-bottom:12px">
+          <label><input type="radio" name="plan" value="contado" checked> De contado${k.vigente ? ` con descuento (${pesos(k.total)})` : ` (${pesos(k.total)})`}</label>
+          ${k.dosCuotas ? `<label><input type="radio" name="plan" value="cuotas"> 1.ª cuota — la mitad (${pesos(k.cuota)}), sin descuento</label>` : ""}
+        </div>
         <div class="grid">
           <div class="c4"><label class="f">Valor pagado <span class="req">*</span></label><input name="valor" type="number" min="1" required value="${k.total}"></div>
           <div class="c4"><label class="f">Fecha del pago <span class="req">*</span></label><input name="fecha" type="date" required value="${CPS.hoyISO()}" max="${CPS.hoyISO()}"></div>
@@ -140,13 +145,18 @@
       ${caja}</div>`;
     $("#b-impf").onclick = () => imprimir(DOCS.factura(i, cfg));
     const fp = $("#fpago");
+    if (fp) $$('#fpago input[name="plan"]').forEach(r => r.onchange = () => { fp.valor.value = fp.plan.value === "cuotas" ? k.cuota : k.total; });
     if (fp) fp.onsubmit = async ev => {
       ev.preventDefault();
+      const valor = Number(fp.valor.value), plan = fp.plan.value;
+      if (valor < k.minimo) { $("#perr").innerHTML = `Para matricular y guardar el cupo debe pagar <b>como mínimo la mitad de la matrícula (${pesos(k.minimo)})</b>.`; $("#perr").hidden = false; return; }
+      const kf = calcFactura(i, cfg, fp.fecha.value);
+      if (plan === "contado" && valor < kf.total && !confirm(`El valor de contado a esa fecha es ${pesos(kf.total)}. Con ${pesos(valor)} se registrará como primera cuota (sin descuento). ¿Continuar?`)) return;
       const b = $("#b-pago"); b.disabled = true; b.textContent = "Enviando…";
       try {
         const a = await archivoReducido(fp.soporte.files[0]);
         await Store.set(RD + "/" + codigo + "/soportePago", Object.assign(a, { subido: new Date().toISOString() }));
-        await Store.actualizar(codigo, { pagoMatricula: { estado: "revision", valor: Number(fp.valor.value), fecha: fp.fecha.value, medio: fp.medio.value, ref: fp.ref.value.trim(), enviado: new Date().toISOString() } });
+        await Store.actualizar(codigo, { pagoMatricula: { estado: "revision", plan: plan === "contado" && valor >= kf.total ? "contado" : "cuotas", valor, fecha: fp.fecha.value, medio: fp.medio.value, ref: fp.ref.value.trim(), enviado: new Date().toISOString() } });
         await recargar(); window.scrollTo({ top: 0, behavior: "smooth" });
       } catch (e) { console.error(e); $("#perr").textContent = e.message || "No se pudo enviar. Intente de nuevo."; $("#perr").hidden = false; b.disabled = false; b.textContent = "Enviar soporte de pago"; }
     };
@@ -173,6 +183,7 @@
     V.innerHTML = cab() + `<div class="card">${etapas(3)}
       ${prev.estado === "correccion" ? `<div class="aviso aviso-r">CORPOSEPI pidió una corrección${prev.motivo ? ": <b>" + esc(prev.motivo) + "</b>" : ""}. Revise y envíe de nuevo.</div>` : ""}
       <div class="aviso aviso-ok">✅ <b>Pago aprobado.</b> Ahora formalice la matrícula: los datos de la inscripción ya están cargados, solo falta adjuntar documentos y firmar.</div>
+      ${cajaSaldo()}
       <h2>Folio de matrícula</h2>
       <p class="ayuda">N.° de folio: <b>se asigna automáticamente al enviar</b>. Los datos vienen de su inscripción; si algo cambió, avísele a CORPOSEPI.</p>
       <dl class="datos" style="max-width:none">
@@ -219,6 +230,7 @@
       $("#v-pagare").innerHTML = DOCS.pagare(i, borrador);
     };
     vistaDocs();
+    enlazarSaldo();
     $$("#m-exp, #m-correo").forEach(e => e.addEventListener("input", vistaDocs));
 
     // adjuntar documentos (se guardan de una vez)
@@ -285,6 +297,39 @@
     };
   }
 
+  // ---------- Saldo de matrícula (2.ª cuota) ----------
+  function cajaSaldo() {
+    const p1 = i.pagoMatricula, p2 = i.pagoMatricula2;
+    if (!p1 || p1.plan !== "cuotas") {
+      return CPS.ganaDescPension(i, cfg, p1) ? `<div class="aviso aviso-ok">🎁 <b>Matrícula de contado con descuento:</b> tiene derecho al <b>${calcFactura(i, cfg).pensionDescPct}% de descuento en la pensión</b> (${pesos(calcFactura(i, cfg).pensionConDesc)}) cada mes que pague dentro de los primeros ${calcFactura(i, cfg).pensionDia} días.</div>` : "";
+    }
+    const total = CPS.valorMatriculaFinal(i, cfg), pag = CPS.pagadoMatricula(i, false), saldo = Math.max(0, total - pag), k = calcFactura(i, cfg);
+    if (saldo <= 0) return p2 && p2.estado === "revision" ? `<div class="aviso aviso-a">⏳ 2.ª cuota reportada (${pesos(p2.valor)}), en revisión.</div>` : `<div class="aviso aviso-ok">✅ Matrícula pagada completa (dos cuotas).</div>`;
+    return `<div class="card" style="box-shadow:none;border:1.5px solid var(--linea)">
+      <h2>Saldo de matrícula: ${pesos(saldo)}</h2>
+      <p class="ayuda">Pagó la matrícula en dos cuotas. La <b>2.ª cuota</b> vence el <b>${fecha(k.cuota2Hasta)}</b>.${p2 && p2.estado === "rechazado" ? ` <b style="color:var(--rojo)">El soporte anterior no fue aprobado: ${esc(p2.motivo || "")}</b>` : ""}</p>
+      <form id="fpago2"><div class="grid">
+        <div class="c4"><label class="f">Valor <span class="req">*</span></label><input name="valor" type="number" min="1" required value="${saldo}"></div>
+        <div class="c4"><label class="f">Fecha del pago <span class="req">*</span></label><input name="fecha" type="date" required value="${CPS.hoyISO()}" max="${CPS.hoyISO()}"></div>
+        <div class="c4"><label class="f">Medio <span class="req">*</span></label><select name="medio"><option>Transferencia</option><option>Consignación</option><option>Nequi / Daviplata</option><option>PSE</option><option>Efectivo</option></select></div>
+        <div class="c6"><label class="f">Referencia</label><input name="ref"></div>
+        <div class="c6"><label class="f">Soporte <span class="req">*</span></label><input name="soporte" type="file" accept="image/*,application/pdf" required></div>
+      </div><div class="acciones"><span></span><button class="btn btn-p" id="b-pago2">Enviar soporte de la 2.ª cuota</button></div></form></div>`;
+  }
+  function enlazarSaldo() {
+    const f2 = $("#fpago2"); if (!f2) return;
+    f2.onsubmit = async ev => {
+      ev.preventDefault();
+      const b = $("#b-pago2"); b.disabled = true; b.textContent = "Enviando…";
+      try {
+        const a = await archivoReducido(f2.soporte.files[0]);
+        await Store.set(RD + "/" + codigo + "/soportePago2", Object.assign(a, { subido: new Date().toISOString() }));
+        await Store.actualizar(codigo, { pagoMatricula2: { estado: "revision", plan: "cuota2", valor: Number(f2.valor.value), fecha: f2.fecha.value, medio: f2.medio.value, ref: f2.ref.value.trim(), enviado: new Date().toISOString() } });
+        await recargar();
+      } catch (e) { alert(e.message || "No se pudo enviar."); b.disabled = false; b.textContent = "Enviar soporte de la 2.ª cuota"; }
+    };
+  }
+
   function botonesDocs(m) {
     return `<div class="acciones" style="justify-content:flex-start">
       <button class="btn btn-a" data-imp="folio">🖨️ Folio de matrícula</button>
@@ -299,8 +344,9 @@
   function pintarEnviada(m) {
     V.innerHTML = cab() + `<div class="card">${etapas(4)}
       <div class="aviso aviso-a">📨 <b>Matrícula enviada — Folio N.° ${esc(m.folio)}.</b> CORPOSEPI revisará los documentos y confirmará la matrícula. Al confirmarla se genera el carné digital ${C.anio}.</div>
+      ${cajaSaldo()}
       ${botonesDocs(m)}</div>`;
-    enlazarImp(m);
+    enlazarImp(m); enlazarSaldo();
   }
   async function pintarFinal(m) {
     const c = m.carnet ? await Store.get("carnets_" + C.anio + "/" + m.carnet) : null;
@@ -308,9 +354,10 @@
       <div class="aviso aviso-ok">🎉 <b>¡Matrícula ${C.anio} confirmada!</b> Folio N.° ${esc(m.folio)}. Bienvenidos a CORPOSEPI.</div>
       ${c ? `<h2>Carné digital ${C.anio}</h2><div id="v-carne" style="margin:10px 0 6px">${DOCS.carne(c)}</div>
         <div class="acciones" style="justify-content:center"><a class="btn btn-ok" href="carnet.html?id=${encodeURIComponent(c.id)}${window.CPS_DEMO}" target="_blank" rel="noopener">Abrir carné</a></div>` : ""}
+      ${cajaSaldo()}
       ${botonesDocs(m)}</div>`;
     if (c) DOCS.pintarQR($("#v-carne"));
-    enlazarImp(m);
+    enlazarImp(m); enlazarSaldo();
   }
 })();
 </script>

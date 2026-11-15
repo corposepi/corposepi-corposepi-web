@@ -31,9 +31,16 @@
     fechaLimite: (C.anio) + "-01-31",       // fecha máxima para pagar y matricular
     mediosPago: "Transferencia o consignación a la cuenta de CORPOSEPI (pida los datos por WhatsApp) o pago en efectivo en CORPOSEPI.",
     descuentos: {
-      d1: { nombre: "Pago de matrícula en diciembre", aplica: "matricula", pct: 10, hasta: (C.anio - 1) + "-12-31", para: "todos" },
-      d2: { nombre: "Pago anticipado del año completo de pensiones", aplica: "pension", pct: 5, hasta: (C.anio) + "-02-05", para: "todos" }
-    }
+      d1: { nombre: "Pago de matrícula en diciembre", aplica: "matricula", pct: 10, hasta: (C.anio - 1) + "-12-31", para: "todos" }
+    },
+    // Quien paga la matrícula DE CONTADO con descuento gana descuento mensual en la pensión,
+    // solo los meses que pague dentro de los primeros "pensionDia" días del mes.
+    pensionDescPct: 5,
+    pensionDia: 6,
+    // Matrícula en dos cuotas (sin descuentos). Para matricular y guardar cupo: mínimo la mitad.
+    dosCuotas: true,
+    cuota1Hasta: (C.anio - 1) + "-12-31",
+    cuota2Hasta: (C.anio) + "-01-31"
   };
 
   const CONFIG_BASE = {
@@ -130,12 +137,36 @@
     const vigente = descM.filter(d => !d.hasta || hoy <= d.hasta).sort((a, b) => b.pct - a.pct)[0] || null;
     const desc = vigente ? Math.round(base * vigente.pct / 100) : 0;
     const escalas = descM.map(d => ({ nombre: d.nombre, hasta: d.hasta, pct: d.pct, total: base - Math.round(base * d.pct / 100), vigente: !d.hasta || hoy <= d.hasta }));
+    const mt = cfg.matricula, pension = Number(v.pension) || 0;
+    const pPct = Number(mt.pensionDescPct) || 0, pDia = Number(mt.pensionDia) || 6;
     return {
       base, desc, total: base - desc, vigente, escalas,
-      pension: Number(v.pension) || 0, meses: Number(cfg.matricula.mesesPension) || 10,
+      pension, meses: Number(mt.mesesPension) || 10,
+      // descuento en pensión que se gana pagando la matrícula de contado con descuento
+      pensionDescPct: pPct, pensionDia: pDia, pensionConDesc: pension - Math.round(pension * pPct / 100),
       descPension: descuentosPara(i, cfg, "pension"),
-      fechaLimite: cfg.matricula.fechaLimite
+      // dos cuotas sin descuento; mínimo para matricular = la mitad
+      dosCuotas: mt.dosCuotas !== false, cuota: Math.ceil(base / 2), minimo: Math.ceil(base / 2),
+      cuota1Hasta: mt.cuota1Hasta, cuota2Hasta: mt.cuota2Hasta,
+      fechaLimite: mt.fechaLimite
     };
+  }
+  // ¿El pago de matrícula reportado gana el descuento mensual en pensión?
+  // Sí, si fue de contado (valor ≥ total con descuento) dentro de la fecha de un descuento de matrícula.
+  function ganaDescPension(i, cfg, pago) {
+    if (!pago || pago.plan === "cuotas") return false;   // pagos antiguos sin "plan": se juzgan por el valor
+    const k = calcFactura(i, cfg, pago.fecha);
+    return !!k.vigente && Number(pago.valor) >= k.total && k.pensionDescPct > 0;
+  }
+  // Valor final de la matrícula: con descuento si pagó de contado a tiempo; si no, valor pleno
+  function valorMatriculaFinal(i, cfg) {
+    const p = i.pagoMatricula, k = calcFactura(i, cfg, p && p.fecha);
+    return p && p.plan !== "cuotas" && k.vigente && Number(p.valor) >= k.total ? k.total : k.base;
+  }
+  // Total pagado de matrícula (1ª + 2ª cuota aprobadas o en revisión según "soloAprobado")
+  function pagadoMatricula(i, soloAprobado) {
+    return [i.pagoMatricula, i.pagoMatricula2].filter(p => p && (soloAprobado ? p.estado === "aprobado" : p.estado !== "rechazado"))
+      .reduce((s, p) => s + (Number(p.valor) || 0), 0);
   }
   // Número a letras (pesos colombianos) para contrato y pagaré
   function enLetras(n) {
@@ -443,5 +474,5 @@
 
   const MODALIDADES = ["Presencial", "Semipresencial", "Virtual"];
 
-  window.CPS = { pesos, nivelDe, calcFactura, enLetras, archivoReducido, verArchivo, hoyLargo, MODALIDADES, C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
+  window.CPS = { ganaDescPension, pagadoMatricula, valorMatriculaFinal, pesos, nivelDe, calcFactura, enLetras, archivoReducido, verArchivo, hoyLargo, MODALIDADES, C, GRADOS, ESTADOS, Store, esc, fecha, edad, nombreEst, estadoReal, telWa, hoja, imprimir, hoyISO, TIPOS, fotoReducida, fotoSrc };
 })();

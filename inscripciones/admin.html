@@ -143,6 +143,14 @@
       <div class="c4"><label class="f">Fecha máxima de matrícula</label><input name="fechaLimite" type="date"></div>
       <div class="c4"><label class="f">Meses de pensión</label><input name="mesesPension" type="number" min="1" max="12"></div>
       <div class="c12"><label class="f">Medios de pago (aparece en la factura)</label><textarea name="mediosPago"></textarea></div>
+      <div class="sub">Descuento en pensión por pagar la matrícula de contado con descuento</div>
+      <div class="c4"><label class="f">Descuento mensual en pensión (%)</label><input name="pensionDescPct" type="number" min="0" max="100" step="0.5"></div>
+      <div class="c4"><label class="f">Pagando la pensión hasta el día</label><input name="pensionDia" type="number" min="1" max="28"></div>
+      <div class="c4" style="align-self:end"><p class="nota" style="margin:0">Después de ese día, ese mes paga la pensión plena.</p></div>
+      <div class="sub">Matrícula en dos cuotas (sin descuentos)</div>
+      <div class="c12"><label class="check" style="margin:0"><input type="checkbox" name="dosCuotas"><span>Permitir pagar la matrícula en <b>dos cuotas iguales</b>, sin descuento en matrícula ni en pensiones. Para matricular y guardar el cupo se exige <b>mínimo la mitad</b>.</span></label></div>
+      <div class="c6"><label class="f">1.ª cuota (mitad) hasta</label><input name="cuota1Hasta" type="date"></div>
+      <div class="c6"><label class="f">2.ª cuota (mitad) hasta</label><input name="cuota2Hasta" type="date"></div>
       <div class="sub">Descuentos</div>
       <div class="c12" style="overflow-x:auto"><table class="t-cfg" id="cfg-desc"></table>
         <button type="button" class="mini-btn" id="b-add-desc" style="margin-top:8px">+ Agregar descuento</button></div>
@@ -180,6 +188,7 @@
   function etapaMat(i) {
     if (i.estado !== "guardado") return null;
     const m = mats[i.codigo], p = i.pagoMatricula;
+    if (i.pagoMatricula2 && i.pagoMatricula2.estado === "revision") return { k: "pago", txt: "2.ª cuota por revisar", cls: "st-pend" };
     if (m && m.estado === "confirmada") return { k: "matriculado", txt: "Matriculado " + C.anio, cls: "st-ok" };
     if (m && m.estado === "enviada") return { k: "mat", txt: "Matrícula por revisar", cls: "st-pend" };
     if (m && m.estado === "correccion") return { k: "corr", txt: "Matrícula en corrección", cls: "st-venc" };
@@ -332,14 +341,17 @@
   function cajaMatricula(i) {
     const p = i.pagoMatricula, m = mats[i.codigo], k = CPS.calcFactura(i, cfg, p && p.fecha);
     let h = `<div class="mat-box"><h3>🎓 Matrícula ${C.anio}</h3>
-      <div style="font-size:14px">Factura: <b>${esc((i.factura && i.factura.numero) || "aún no abierta por la familia")}</b> · Valor matrícula: <b>${pesos(k.base)}</b>${k.desc ? ` · con descuento a la fecha del pago: <b>${pesos(k.total)}</b>` : ""} · Pensión: <b>${pesos(k.pension)}</b>/mes</div>
+      <div style="font-size:14px">Factura: <b>${esc((i.factura && i.factura.numero) || "aún no abierta por la familia")}</b> · Valor matrícula: <b>${pesos(k.base)}</b>${k.desc && !(p && p.plan === "cuotas") ? ` · con descuento a la fecha del pago: <b>${pesos(k.total)}</b>` : ""} · Pensión: <b>${pesos(k.pension)}</b>/mes</div>
       <div class="acciones" style="margin:10px 0 0;justify-content:flex-start">
         <button type="button" class="btn btn-s" id="m-fact">🧾 Ver factura</button>
         <button type="button" class="btn btn-s" id="m-link">🔗 Copiar link de matrícula</button>
         ${avisoWA(i)}</div>`;
     if (!p) h += `<p class="ayuda" style="margin:10px 0 0">La familia aún no ha reportado el pago de la matrícula.</p>`;
     else {
-      h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>💵 Pago reportado:</b> ${pesos(p.valor)} · ${fecha(p.fecha)} · ${esc(p.medio)}${p.ref ? " · Ref. " + esc(p.ref) : ""}
+      const gana = CPS.ganaDescPension(i, cfg, p), totalM = CPS.valorMatriculaFinal(i, cfg), saldoM = Math.max(0, totalM - CPS.pagadoMatricula(i, true));
+      h += `<div style="font-size:14px;margin-top:8px">Plan: <b>${p.plan === "cuotas" ? "Dos cuotas (sin descuento)" : "Contado"}</b> · Matrícula a pagar: <b>${pesos(totalM)}</b> · Saldo: <b style="color:${saldoM ? "var(--rojo)" : "var(--ok)"}">${pesos(saldoM)}</b>
+        <br>${gana ? `🎁 <b style="color:var(--ok)">Gana descuento en pensión</b>: ${pesos(k.pensionConDesc)} pagando hasta el día ${k.pensionDia} de cada mes (plena ${pesos(k.pension)})` : `Pensión plena: ${pesos(k.pension)} (sin descuento)`}</div>`;
+      h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>💵 ${p.plan === "cuotas" ? "1.ª cuota reportada" : "Pago reportado"}:</b> ${pesos(p.valor)} · ${fecha(p.fecha)} · ${esc(p.medio)}${p.ref ? " · Ref. " + esc(p.ref) : ""}
         <br><small>Reportado el ${fecha(p.enviado, true)}</small>
         ${p.estado === "aprobado" ? `<br><b style="color:var(--ok)">✅ Aprobado</b> por ${esc(p.aprobadoPor || "")} el ${fecha(p.aprobado, true)}` : ""}
         ${p.estado === "rechazado" ? `<br><b style="color:var(--rojo)">✕ Rechazado:</b> ${esc(p.motivo || "")}` : ""}
@@ -347,6 +359,12 @@
           <button type="button" class="btn btn-s" id="m-soporte">📎 Ver soporte</button>
           ${p.estado === "revision" ? `<button type="button" class="btn btn-ok" id="m-aprobar">✓ Aprobar pago</button><button type="button" class="btn btn-s" id="m-rechazar" style="color:var(--rojo)">Rechazar</button>` : ""}
         </div></div>`;
+      const p2 = i.pagoMatricula2;
+      if (p2) h += `<div class="pago-box" style="background:#fff;border-color:var(--linea)"><b>💵 2.ª cuota reportada:</b> ${pesos(p2.valor)} · ${fecha(p2.fecha)} · ${esc(p2.medio)}${p2.ref ? " · Ref. " + esc(p2.ref) : ""}
+        ${p2.estado === "aprobado" ? `<br><b style="color:var(--ok)">✅ Aprobada</b> por ${esc(p2.aprobadoPor || "")} el ${fecha(p2.aprobado, true)}` : ""}
+        ${p2.estado === "rechazado" ? `<br><b style="color:var(--rojo)">✕ Rechazada:</b> ${esc(p2.motivo || "")}` : ""}
+        <div class="acciones" style="margin:10px 0 0;justify-content:flex-start"><button type="button" class="btn btn-s" id="m-soporte2">📎 Ver soporte</button>
+          ${p2.estado === "revision" ? `<button type="button" class="btn btn-ok" id="m-aprobar2">✓ Aprobar 2.ª cuota</button><button type="button" class="btn btn-s" id="m-rechazar2" style="color:var(--rojo)">Rechazar</button>` : ""}</div></div>`;
     }
     if (m) {
       const fs = DOCS.firmantes(i);
@@ -372,6 +390,18 @@
     on("#m-soporte", async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/soportePago")));
     on("#m-aprobar", () => cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "aprobado", aprobado: new Date().toISOString(), aprobadoPor: usuario }) }, "Pago aprobado ✓ — avísele a la familia con el botón verde de WhatsApp"));
     on("#m-rechazar", () => { const mo = prompt("Motivo del rechazo (la familia lo verá):"); if (mo) cambiar({ pagoMatricula: Object.assign({}, i.pagoMatricula, { estado: "rechazado", motivo: mo }) }, "Pago rechazado"); });
+    on("#m-soporte2", async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/soportePago2")));
+    on("#m-rechazar2", () => { const mo = prompt("Motivo del rechazo (la familia lo verá):"); if (mo) cambiar({ pagoMatricula2: Object.assign({}, i.pagoMatricula2, { estado: "rechazado", motivo: mo }) }, "2.ª cuota rechazada"); });
+    on("#m-aprobar2", async () => {
+      const p2 = Object.assign({}, i.pagoMatricula2, { estado: "aprobado", aprobado: new Date().toISOString(), aprobadoPor: usuario });
+      // si la matrícula ya está confirmada, la 2.ª cuota se suma en la cartera 2027
+      if (m && m.carteraAplicada) {
+        const cc = String(i.acuCC || "").replace(/\D/g, ""), pg = (await Store.get("pagos_" + C.anio + "/f_" + cc)) || {};
+        await Store.patch("pagos_" + C.anio + "/f_" + cc, { matricula_total: (Number(pg.matricula_total) || 0) + (Number(p2.valor) || 0) });
+        p2.enCartera = true;
+      }
+      cambiar({ pagoMatricula2: p2 }, "2.ª cuota aprobada ✓");
+    });
     $$("#det [data-doc]").forEach(b => b.onclick = async () => CPS.verArchivo(await Store.get(RD + "/" + i.codigo + "/" + b.dataset.doc)));
     $$("#det [data-imp]").forEach(b => b.onclick = () => imprimir(b.dataset.imp === "folio" ? DOCS.folio(i, m) : b.dataset.imp === "contrato" ? DOCS.contrato(i, m, cfg) : DOCS.pagare(i, m)));
     on("#m-corregir", async () => {
@@ -412,7 +442,9 @@
     if (!m.carteraAplicada) {
       const cc = String(i.acuCC || "").replace(/\D/g, "");
       const k = CPS.calcFactura(i, cfg, i.pagoMatricula && i.pagoMatricula.fecha);
-      const hijo = { nom: nombreEst(i).toUpperCase(), doc: i.numDoc, grado: String(i.grado).toUpperCase(), jornada: i.modalidad || "", matricula: k.total, pension: k.pension, carnet: id, folio: m.folio };
+      const hijo = { nom: nombreEst(i).toUpperCase(), doc: i.numDoc, grado: String(i.grado).toUpperCase(), jornada: i.modalidad || "", matricula: CPS.valorMatriculaFinal(i, cfg), pension: k.pension, carnet: id, folio: m.folio };
+      // derecho al descuento mensual en pensión (pagando hasta el día indicado de cada mes)
+      if (CPS.ganaDescPension(i, cfg, i.pagoMatricula)) { hijo.descPct = k.pensionDescPct; hijo.descDia = k.pensionDia; }
       const fam = await Store.get("familias_" + A + "/" + cc);
       if (fam) {
         const hijos = (fam.hijos || []).filter(h => h.doc !== hijo.doc); hijos.push(hijo);
@@ -425,7 +457,8 @@
         });
       }
       const pg = (await Store.get("pagos_" + A + "/f_" + cc)) || {};
-      await Store.patch("pagos_" + A + "/f_" + cc, { matricula_total: (Number(pg.matricula_total) || 0) + (Number(i.pagoMatricula && i.pagoMatricula.valor) || 0) });
+      await Store.patch("pagos_" + A + "/f_" + cc, { matricula_total: (Number(pg.matricula_total) || 0) + CPS.pagadoMatricula(i, true) });
+      if (i.pagoMatricula2 && i.pagoMatricula2.estado === "aprobado") await Store.actualizar(i.codigo, { pagoMatricula2: Object.assign({}, i.pagoMatricula2, { enCartera: true }) });
     }
     const r = Object.assign({}, m, { estado: "confirmada", confirmada: hoy.toISOString(), confirmadaPor: usuario, carnet: id, carteraAplicada: true });
     await Store.patch(RM + "/" + i.codigo, { estado: "confirmada", confirmada: r.confirmada, confirmadaPor: usuario, carnet: id, carteraAplicada: true });
@@ -550,8 +583,10 @@
       <td><input type="number" min="0" step="1000" data-vg="${g}" data-vk="matricula" value="${mt.valores[g].matricula}"></td>
       <td><input type="number" min="0" step="1000" data-vg="${g}" data-vk="pension" value="${mt.valores[g].pension}"></td></tr>`).join("");
     f.fechaLimite.value = mt.fechaLimite || ""; f.mesesPension.value = mt.mesesPension || 10; f.mediosPago.value = mt.mediosPago || "";
+    f.pensionDescPct.value = mt.pensionDescPct ?? 0; f.pensionDia.value = mt.pensionDia || 6;
+    f.dosCuotas.checked = mt.dosCuotas !== false; f.cuota1Hasta.value = mt.cuota1Hasta || ""; f.cuota2Hasta.value = mt.cuota2Hasta || "";
     const filaDesc = (id, d) => `<tr data-d="${id}"><td><input data-dk="nombre" value="${esc(d.nombre || "")}" placeholder="Ej.: Pago en diciembre"></td>
-      <td><select data-dk="aplica"><option value="matricula" ${d.aplica === "matricula" ? "selected" : ""}>Matrícula</option><option value="pension" ${d.aplica === "pension" ? "selected" : ""}>Pensiones</option></select></td>
+      <td><select data-dk="aplica"><option value="matricula" ${d.aplica === "matricula" ? "selected" : ""}>Matrícula</option><option value="pension" ${d.aplica === "pension" ? "selected" : ""}>Pensiones (otro, solo informativo)</option></select></td>
       <td><input data-dk="pct" type="number" min="0" max="100" value="${d.pct || 0}" style="width:70px"> %</td>
       <td><input data-dk="hasta" type="date" value="${d.hasta || ""}"></td>
       <td><select data-dk="para"><option value="todos">Todos</option><option value="nuevo" ${d.para === "nuevo" ? "selected" : ""}>Nuevos</option><option value="continuidad" ${d.para === "continuidad" ? "selected" : ""}>Continuidad</option></select></td>
@@ -581,7 +616,9 @@
       if (d.nombre && d.pct > 0) descuentos[tr.dataset.d] = d;
     });
     // (la base de datos borra los objetos vacíos: "false" = sin descuentos)
-    n.matricula = { valores, descuentos: Object.keys(descuentos).length ? descuentos : false, fechaLimite: f.fechaLimite.value, mesesPension: Number(f.mesesPension.value) || 10, mediosPago: f.mediosPago.value.trim() };
+    n.matricula = { valores, descuentos: Object.keys(descuentos).length ? descuentos : false, fechaLimite: f.fechaLimite.value, mesesPension: Number(f.mesesPension.value) || 10, mediosPago: f.mediosPago.value.trim(),
+      pensionDescPct: Number(f.pensionDescPct.value) || 0, pensionDia: Number(f.pensionDia.value) || 6,
+      dosCuotas: f.dosCuotas.checked, cuota1Hasta: f.cuota1Hasta.value, cuota2Hasta: f.cuota2Hasta.value };
     try { await Store.saveConfig(n); cfg = n; pintar(); $("#m-cfg").hidden = true; toast("Configuración guardada"); }
     catch (e) { toast("No se pudo guardar: " + e.message); }
   };
