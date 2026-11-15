@@ -380,6 +380,7 @@
       pintar(); detalle(i.codigo); toast("Corrección solicitada");
     });
     on("#m-confirmar", async () => {
+      if (!fotoSrc(i) && !confirm(`⚠️ ${nombreEst(i)} NO tiene foto: el carné saldrá sin foto.\n\nLe recomendamos primero «📷 Subir foto». ¿Confirmar de todas formas?`)) return;
       if (!confirm(`¿Confirmar la matrícula ${C.anio} de ${nombreEst(i)}?\n\nSe generará el carné digital ${C.anio} y se registrará en la cartera ${C.anio}.`)) return;
       const b = $("#m-confirmar"); b.disabled = true; b.textContent = "Generando…";
       try {
@@ -510,7 +511,13 @@
     $("#d-foto").onchange = async ev => {
       const file = ev.target.files[0]; ev.target.value = "";
       if (!file) return;
-      try { const foto = await CPS.fotoReducida(file); cambiar({ foto, nota: "Foto " + (fotoSrc(i) ? "cambiada" : "agregada") + " por " + usuario }, "Foto guardada ✓"); }
+      try {
+        const foto = await CPS.fotoReducida(file);
+        // si ya tiene carné 2027, también se le actualiza la foto
+        const mc = mats[i.codigo];
+        if (mc && mc.carnet) await Store.patch("carnets_" + C.anio + "/" + mc.carnet, { photo: foto, modificado: new Date().toISOString() });
+        cambiar({ foto, nota: "Foto " + (fotoSrc(i) ? "cambiada" : "agregada") + " por " + usuario }, mc && mc.carnet ? "Foto guardada y actualizada en el carné ✓" : "Foto guardada ✓");
+      }
       catch (e) { toast("No se pudo cargar la foto. Use una imagen JPG o PNG."); }
     };
     const fc = $("#fconf");
