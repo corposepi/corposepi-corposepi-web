@@ -56,7 +56,7 @@
               <label><input type="radio" name="tipoEstudiante" value="continuidad"> Continuidad: ya estudia en CORPOSEPI en <span class="anio-ant"></span></label>
             </div></div>
 
-          <div class="c12"><label class="f">Foto del estudiante</label>
+          <div class="c12"><label class="f">Foto del estudiante <span class="req">*</span></label>
             <div class="foto-box">
               <div class="foto-prev" id="foto-prev">📷</div>
               <div class="foto-acc">
@@ -66,7 +66,7 @@
                   <input type="file" id="foto-cap" accept="image/*" capture="environment" hidden>
                 </div>
                 <button type="button" class="mini-btn" id="foto-quitar" hidden>Quitar foto</button>
-                <div class="nota">Foto tipo documento.</div>
+                <div class="nota"><b>Obligatoria:</b> se usará para el carné digital del estudiante. Tipo documento: de frente, rostro descubierto, fondo claro y buena luz.</div>
               </div>
             </div></div>
 
@@ -312,6 +312,7 @@
     const p = $("#foto-prev");
     p.style.backgroundImage = foto ? `url("${foto}")` : "";
     p.classList.toggle("con", !!foto);
+    p.style.borderColor = "";
     $("#foto-quitar").hidden = !foto;
   }
   async function usarFoto(f) {
@@ -413,6 +414,11 @@
   function valido(n) {
     const campos = [...document.querySelectorAll(`.paso[data-paso="${n}"] [name]`)];
     const malos = campos.filter(c => !c.checkValidity());
+    if (n === 1 && !foto) {
+      $("#foto-prev").style.borderColor = "var(--rojo)";
+      $("#err").innerHTML = "<b>Falta la foto del estudiante.</b> Es obligatoria porque se usará para su carné digital. Use «Tomar foto» o «Seleccionar archivo».";
+      $("#err").hidden = false; $("#foto-prev").scrollIntoView({ behavior: "smooth", block: "center" }); return false;
+    }
     if (n === 3 && !F.madreNombre.value.trim() && !F.padreNombre.value.trim()) {
       $("#err").innerHTML = "Escriba el nombre de al menos uno de los padres."; $("#err").hidden = false; return false;
     }
